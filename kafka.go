@@ -1,3 +1,8 @@
+// Copyright © 2016 Circonus, Inc. <support@circonus.com>
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+
 package wirelatency
 
 import (
@@ -6,10 +11,11 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"github.com/golang/snappy"
 	"io/ioutil"
 	"log"
 	"time"
+
+	"github.com/golang/snappy"
 )
 
 var debug_kafka = flag.Bool("debug_kafka", false, "Debug kafka reassembly")

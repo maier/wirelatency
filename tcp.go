@@ -1,17 +1,23 @@
+// Copyright © 2016 Circonus, Inc. <support@circonus.com>
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+
 package wirelatency
 
 import (
 	"bufio"
 	"container/list"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/tcpassembly"
-	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"log"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/tcpassembly"
+	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
 type tcpStreamFactory struct {

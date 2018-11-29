@@ -1,12 +1,18 @@
+// Copyright © 2016 Circonus, Inc. <support@circonus.com>
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+
 package wirelatency
 
 import (
 	"encoding/binary"
 	"flag"
-	"github.com/golang/snappy"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/golang/snappy"
 )
 
 var debug_cql = flag.Bool("debug_cql", false, "Debug cassandra cql reassembly")
