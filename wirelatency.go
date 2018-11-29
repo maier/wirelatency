@@ -1,24 +1,32 @@
+// Copyright © 2016 Circonus, Inc. <support@circonus.com>
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+
+// +build go1.11
+
 package wirelatency
 
 import (
 	"errors"
 	"flag"
-	"github.com/circonus-labs/circonus-gometrics"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
-	"github.com/google/gopacket/tcpassembly"
 	"log"
 	"net"
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/circonus-labs/circonus-gometrics/v3"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
+	"github.com/google/gopacket/tcpassembly"
 )
 
 var metrics *circonusgometrics.CirconusMetrics
 var debug_measurements = flag.Bool("debug_measurements", false, "Debug measurement recording")
-var haveLocalAddresses bool = false
-var localAddresses map[gopacket.Endpoint]bool = make(map[gopacket.Endpoint]bool)
+var haveLocalAddresses = false
+var localAddresses = make(map[gopacket.Endpoint]bool)
 
 func AddLocalIP(ip net.IP) {
 	if ip.To4() != nil {
