@@ -1,12 +1,15 @@
+// Copyright © 2016 Circonus, Inc. <support@circonus.com>
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+
+// +build go1.11
+
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	"github.com/circonus-labs/circonus-gometrics"
-	"github.com/circonus-labs/wirelatency"
-	"github.com/google/gopacket/layers"
 	"log"
 	"net"
 	"net/http"
@@ -16,9 +19,14 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/circonus-labs/circonus-gometrics/v3"
+	"github.com/circonus-labs/wirelatency"
+	"github.com/google/gopacket/layers"
+	"github.com/pkg/errors"
 )
 
-var version string = "0.0.3"
+var version = "0.0.3"
 
 type localip struct{}
 
@@ -29,7 +37,7 @@ func (r *localip) String() string {
 func (r *localip) Set(value string) error {
 	ip := net.ParseIP(value)
 	if ip == nil {
-		return errors.New(fmt.Sprintf("Invalid IP address: %s\n", value))
+		return errors.Errorf("Invalid IP address: %s\n", value)
 	}
 	wirelatency.AddLocalIP(ip)
 	return nil
@@ -47,7 +55,7 @@ type wiring struct {
 	config *string
 }
 
-var wirings []wiring = make([]wiring, 0, 1)
+var wirings = make([]wiring, 0, 1)
 
 func (r *regflag) Set(value string) error {
 	parts := strings.SplitN(value, ":", 3)
@@ -72,10 +80,10 @@ func (r *regflag) Set(value string) error {
 	return nil
 }
 
-var debug_circonus = flag.Bool("debug_circonus", false, "Debug CirconusMetrics")
+var debugCirconus = flag.Bool("debugCirconus", false, "Debug CirconusMetrics")
 var vflag = flag.Bool("v", false, "Show version information")
 var quiet = flag.Bool("s", false, "Be quiet")
-var apihost = flag.String("apihost", "", "Circonus API Hostname")
+var apiurl = flag.String("apiurl", "", "Circonus API URL")
 var apitoken = flag.String("apitoken", "", "Circonus API Token")
 var instanceid = flag.String("instanceid", "", "This machine's unique identifier")
 var submissionurl = flag.String("submissionurl", "", "Optional HTTPTrap URL")
@@ -86,16 +94,20 @@ var brokertag = flag.String("brokertag", "", "The broker tag for selection")
 var autoRestart = flag.String("auto_restart", "", "Restart duration")
 
 func main() {
-	var orig_args = make([]string, len(os.Args))
-        for idx, arg := range os.Args { orig_args[idx] = arg }
+	var origArgs = make([]string, len(os.Args))
+	for idx, arg := range os.Args {
+		origArgs[idx] = arg
+	}
 
-	var orig_env = make([]string, len(os.Environ()))
-        for idx, arg := range os.Environ() { orig_env[idx] = arg }
+	var origEnv = make([]string, len(os.Environ()))
+	for idx, arg := range os.Environ() {
+		origEnv[idx] = arg
+	}
 
-	var localip_flag localip
-	flag.Var(&localip_flag, "localip", "<ipaddress>")
-	var registrations_flag regflag
-	flag.Var(&registrations_flag, "wire", "<name>:<port>[:<config>]")
+	var localIPFlag localip
+	flag.Var(&localIPFlag, "localip", "<ipaddress>")
+	var registrationsFlag regflag
+	flag.Var(&registrationsFlag, "wire", "<name>:<port>[:<config>]")
 	flag.Parse()
 
 	if *vflag {
@@ -111,7 +123,7 @@ func main() {
 		go (func(d time.Duration) {
 			time.Sleep(d)
 			wirelatency.Close()
-			syscall.Exec(orig_args[0], orig_args, orig_env)
+			syscall.Exec(origArgs[0], origArgs, origEnv)
 			log.Fatalf("Failed process replacement\n")
 		})(dur)
 	}
@@ -130,9 +142,9 @@ func main() {
 		cfg.CheckManager.Check.ID = *checkid
 		cfg.CheckManager.Broker.ID = *brokergroupid
 		cfg.CheckManager.Broker.SelectTag = *brokertag
-		cfg.CheckManager.API.URL = *apihost
+		cfg.CheckManager.API.URL = *apiurl
 		cfg.CheckManager.API.TokenKey = *apitoken
-		cfg.Debug = *debug_circonus
+		cfg.Debug = *debugCirconus
 		metrics, err := circonusgometrics.NewCirconusMetrics(cfg)
 		if err != nil {
 			log.Printf("Error initializing Circonus metrics, no reporting will happen. (%v)", err)
@@ -152,7 +164,7 @@ func main() {
 	if len(mapping) == 0 {
 		fmt.Printf("Usage:\n\t-wire <protocol>[:<port>[:<config>]]\n\n")
 		fmt.Printf("No -wire <mapping> specified, available:\n")
-		for protocol, _ := range prots {
+		for protocol := range prots {
 			fmt.Printf("\t-wire %v\n", protocol)
 		}
 		fmt.Printf("\nplease specify at least one wire mapping.\n")
