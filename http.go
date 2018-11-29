@@ -3,7 +3,6 @@ package wirelatency
 import (
 	"encoding/json"
 	"flag"
-	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"io"
 	"io/ioutil"
 	"log"
@@ -12,6 +11,8 @@ import (
 	"regexp"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
 var debug_wl_http = flag.Bool("debug_wl_http", false, "Debug wirelatency HTTP decoding")
@@ -70,7 +71,7 @@ func (p *httpParser) ManageIn(stream *tcpTwoWayStream) {
 	defer func() {
 		if r := recover(); r != nil {
 			if *debug_wl_http {
-				log.Println("[RECOVERY] (http/ManageIn): %v", r)
+				log.Printf("[RECOVERY] (http/ManageIn): %v\n", r)
 			}
 		}
 	}()
@@ -109,7 +110,7 @@ func (p *httpParser) ManageIn(stream *tcpTwoWayStream) {
 			nbytes, derr := tcpreader.DiscardBytesToFirstError(req.Body)
 			if derr != nil && derr != io.EOF {
 				if *debug_wl_http {
-					log.Println("[DEBUG] error reading request body: %v", derr)
+					log.Printf("[DEBUG] error reading request body: %v\n", derr)
 				}
 				return
 			}
@@ -137,7 +138,7 @@ func (p *httpParser) ManageOut(stream *tcpTwoWayStream) {
 	defer func() {
 		if r := recover(); r != nil {
 			if *debug_wl_http {
-				log.Println("[RECOVERY] (http/ManageOut): %v", r)
+				log.Printf("[RECOVERY] (http/ManageOut): %v\n", r)
 			}
 		}
 	}()
@@ -171,7 +172,7 @@ func (p *httpParser) ManageOut(stream *tcpTwoWayStream) {
 			nbytes, derr := tcpreader.DiscardBytesToFirstError(resp.Body)
 			if derr != nil && derr != io.EOF {
 				if *debug_wl_http {
-					log.Println("[DEBUG] error reading http response body: %v", derr)
+					log.Printf("[DEBUG] error reading http response body: %v\n", derr)
 				}
 				return
 			}
