@@ -92,3 +92,14 @@ sizes.  All production "Produce" and consumption "Fetch" are tracked in
 `_aggregate` and by topic.  Messages in production and consumption are expanded
 (including gzip and snappy) to analyze for message timestamps (for latency) and
 uncompressed payload sizes.
+
+## Building
+
+[go1.11](https://golang.org/dl/) is required to build. Most importantly,
+clone the repository _outside_ of `GOPATH`.
+
+```sh
+git clone https://github.com/circonus-labs/wirelatency.git
+cd wirelatency/protocol_observer
+go build
+```
