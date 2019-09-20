@@ -20,12 +20,12 @@ import (
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
-var debug_wl_http = flag.Bool("debug_wl_http", false, "Debug wirelatency HTTP decoding")
+var debugHTTP = flag.Bool("debug_wl_http", false, "Debug wirelatency HTTP decoding")
 
 type httpEndpointMap struct {
-	path_re *regexp.Regexp
-	Path    string
-	Name    string
+	pathRe *regexp.Regexp
+	Path   string
+	Name   string
 }
 type httpConfig struct {
 	Routes []httpEndpointMap
@@ -38,10 +38,10 @@ type httpReqInfo struct {
 	size   int
 }
 type httpRespInfo struct {
-	status_name  string
-	size         int
-	ta_firstbyte time.Time
-	end          time.Time
+	statusName  string
+	size        int
+	taFirstByte time.Time
+	end         time.Time
 }
 type httpParser struct {
 	l        sync.Mutex
@@ -63,19 +63,19 @@ func (p *httpParser) process() {
 		var resp *httpRespInfo
 		req, p.reqinfo = p.reqinfo[0], p.reqinfo[1:]
 		resp, p.respinfo = p.respinfo[0], p.respinfo[1:]
-		name := req.method + "`" + req.name + "`" + resp.status_name
-		tt_firstbyte := math.Max(float64(resp.ta_firstbyte.Sub(req.start))/1000000000.0, 0.0000001)
-		tt_duration := math.Max(float64(resp.end.Sub(req.start))/1000000000.0, 0.0000001)
-		wl_track_float64("seconds", tt_firstbyte, name+"`firstbyte_latency")
-		wl_track_float64("seconds", tt_duration, name+"`latency")
-		wl_track_int64("bytes", int64(req.size), name+"`request_bytes")
-		wl_track_int64("bytes", int64(resp.size), name+"`response_bytes")
+		name := req.method + "`" + req.name + "`" + resp.statusName
+		ttFirstbyte := math.Max(float64(resp.taFirstByte.Sub(req.start))/1000000000.0, 0.0000001)
+		ttDuration := math.Max(float64(resp.end.Sub(req.start))/1000000000.0, 0.0000001)
+		wlTrackFloat64("seconds", ttFirstbyte, name+"`firstbyte_latency")
+		wlTrackFloat64("seconds", ttDuration, name+"`latency")
+		wlTrackInt64("bytes", int64(req.size), name+"`request_bytes")
+		wlTrackInt64("bytes", int64(resp.size), name+"`response_bytes")
 	}
 }
 func (p *httpParser) ManageIn(stream *tcpTwoWayStream) {
 	defer func() {
 		if r := recover(); r != nil {
-			if *debug_wl_http {
+			if *debugHTTP {
 				log.Printf("[RECOVERY] (http/ManageIn): %v\n", r)
 			}
 		}
@@ -85,140 +85,139 @@ func (p *httpParser) ManageIn(stream *tcpTwoWayStream) {
 	if factory != nil {
 		config = factory.config
 	}
-	r_in := stream.in.reader
+	rIn := stream.in.reader
 	for {
 		var req *http.Request
-		_, err := r_in.ReadByte()
+		_, err := rIn.ReadByte()
 		if err == nil {
-			err = r_in.UnreadByte()
+			err = rIn.UnreadByte()
 		}
 		if err != nil {
-			if *debug_wl_http {
+			if *debugHTTP {
 				log.Println("[DEBUG] Error parsing HTTP requests:", err)
 			}
 			return
 		}
-		start_time := time.Now()
 
-		if newReq, err := http.ReadRequest(r_in); err == io.EOF {
-			return
-		} else if err != nil {
-			if *debug_wl_http {
+		startTime := time.Now()
+
+		newReq, err := http.ReadRequest(rIn)
+		if err != nil {
+			if err != io.EOF && *debugHTTP {
 				log.Println("[DEBUG] Error parsing HTTP requests:", err)
 			}
 			return
-		} else {
-			if *debug_wl_http {
-				log.Println("[DEBUG] new request read.")
-			}
-			req = newReq
-			nbytes, derr := tcpreader.DiscardBytesToFirstError(req.Body)
-			if derr != nil && derr != io.EOF {
-				if *debug_wl_http {
-					log.Printf("[DEBUG] error reading request body: %v\n", derr)
-				}
-				return
-			}
-			if *debug_wl_http {
-				log.Println("[DEBUG] Body contains", nbytes, "bytes")
-			}
-			path := "unknown"
-			if req.URL != nil {
-				path = req.URL.Path
-			}
-			p.l.Lock()
-			p.reqinfo = append(p.reqinfo, &httpReqInfo{
-				name:   UrlMatch(config, path),
-				method: req.Method,
-				start:  start_time,
-				size:   nbytes,
-			})
-			p.l.Unlock()
-			p.process()
 		}
+
+		if *debugHTTP {
+			log.Println("[DEBUG] new request read.")
+		}
+		req = newReq
+		nbytes, derr := tcpreader.DiscardBytesToFirstError(req.Body)
+		if derr != nil && derr != io.EOF {
+			if *debugHTTP {
+				log.Printf("[DEBUG] error reading request body: %v\n", derr)
+			}
+			return
+		}
+		if *debugHTTP {
+			log.Println("[DEBUG] Body contains", nbytes, "bytes")
+		}
+		path := "unknown"
+		if req.URL != nil {
+			path = req.URL.Path
+		}
+		p.l.Lock()
+		p.reqinfo = append(p.reqinfo, &httpReqInfo{
+			name:   URLMatch(config, path),
+			method: req.Method,
+			start:  startTime,
+			size:   nbytes,
+		})
+		p.l.Unlock()
+		p.process()
 	}
 }
 
 func (p *httpParser) ManageOut(stream *tcpTwoWayStream) {
 	defer func() {
 		if r := recover(); r != nil {
-			if *debug_wl_http {
+			if *debugHTTP {
 				log.Printf("[RECOVERY] (http/ManageOut): %v\n", r)
 			}
 		}
 	}()
-	r_out := stream.out.reader
+	rOut := stream.out.reader
 	for {
 		var req *http.Request
-		_, err := r_out.ReadByte()
+		_, err := rOut.ReadByte()
 		if err == nil {
-			err = r_out.UnreadByte()
+			err = rOut.UnreadByte()
 		}
 		if err != nil {
-			if *debug_wl_http {
+			if *debugHTTP {
 				log.Println("[DEBUG] Error parsing HTTP requests:", err)
 			}
 			return
 		}
-		ta_firstbyte := time.Now()
+		taFirstByte := time.Now()
 
-		if resp, err := http.ReadResponse(r_out, req); err == io.EOF {
-			return
-		} else if err != nil {
-			if *debug_wl_http {
+		resp, err := http.ReadResponse(rOut, req)
+		if err != nil {
+			if err != io.EOF && *debugHTTP {
 				log.Println("[DEBUG] Error parsing HTTP responses:", err)
 				log.Printf("[%+v]\n", stream.out)
 			}
 			return
-		} else {
-			if *debug_wl_http {
-				log.Println("[DEBUG] new response read.")
-			}
-			nbytes, derr := tcpreader.DiscardBytesToFirstError(resp.Body)
-			if derr != nil && derr != io.EOF {
-				if *debug_wl_http {
-					log.Printf("[DEBUG] error reading http response body: %v\n", derr)
-				}
-				return
-			}
-			ta_lastbyte := time.Now()
-			resp.Body.Close()
-			if *debug_wl_http {
-				log.Println("[DEBUG] Body contains", nbytes, "bytes")
-			}
-			status_name := "xxx"
-			switch {
-			case resp.StatusCode >= 0 && resp.StatusCode < 100:
-				status_name = "0xx"
-			case resp.StatusCode >= 100 && resp.StatusCode < 200:
-				status_name = "1xx"
-			case resp.StatusCode >= 200 && resp.StatusCode < 300:
-				status_name = "2xx"
-			case resp.StatusCode >= 300 && resp.StatusCode < 400:
-				status_name = "3xx"
-			case resp.StatusCode >= 400 && resp.StatusCode < 500:
-				status_name = "4xx"
-			case resp.StatusCode >= 500 && resp.StatusCode < 600:
-				status_name = "5xx"
-			}
-			p.l.Lock()
-			p.respinfo = append(p.respinfo, &httpRespInfo{
-				status_name:  status_name,
-				size:         nbytes,
-				ta_firstbyte: ta_firstbyte,
-				end:          ta_lastbyte,
-			})
-			p.l.Unlock()
-
-			p.process()
 		}
+
+		if *debugHTTP {
+			log.Println("[DEBUG] new response read.")
+		}
+		nbytes, derr := tcpreader.DiscardBytesToFirstError(resp.Body)
+		if derr != nil && derr != io.EOF {
+			if *debugHTTP {
+				log.Printf("[DEBUG] error reading http response body: %v\n", derr)
+			}
+			return
+		}
+		taLastByte := time.Now()
+		resp.Body.Close()
+		if *debugHTTP {
+			log.Println("[DEBUG] Body contains", nbytes, "bytes")
+		}
+		statusName := "xxx"
+		switch {
+		case resp.StatusCode >= 0 && resp.StatusCode < 100:
+			statusName = "0xx"
+		case resp.StatusCode >= 100 && resp.StatusCode < 200:
+			statusName = "1xx"
+		case resp.StatusCode >= 200 && resp.StatusCode < 300:
+			statusName = "2xx"
+		case resp.StatusCode >= 300 && resp.StatusCode < 400:
+			statusName = "3xx"
+		case resp.StatusCode >= 400 && resp.StatusCode < 500:
+			statusName = "4xx"
+		case resp.StatusCode >= 500 && resp.StatusCode < 600:
+			statusName = "5xx"
+		}
+		p.l.Lock()
+		p.respinfo = append(p.respinfo, &httpRespInfo{
+			statusName:  statusName,
+			size:        nbytes,
+			taFirstByte: taFirstByte,
+			end:         taLastByte,
+		})
+		p.l.Unlock()
+
+		p.process()
 	}
 }
 
-func UrlMatch(iconfig interface{}, url string) string {
+func URLMatch(iconfig interface{}, url string) string {
 	config := iconfig.(httpConfig)
 	for _, route := range config.Routes {
-		if route.path_re.MatchString(url) {
+		if route.pathRe.MatchString(url) {
 			return route.Name
 		}
 	}
@@ -232,15 +231,14 @@ func (f httpParserFactory) New() TCPProtocolInterpreter {
 	return &p
 }
 func httpConfigParser(c *string) interface{} {
-	var config httpConfig
-	config = httpConfig{Routes: make([]httpEndpointMap, 0)}
+	config := httpConfig{Routes: make([]httpEndpointMap, 0)}
 	if c == nil {
-		var default_endpoints = make([]httpEndpointMap, 1)
-		default_endpoints[0] = httpEndpointMap{
+		var defaultEndpoints = make([]httpEndpointMap, 1)
+		defaultEndpoints[0] = httpEndpointMap{
 			Path: "^/",
 			Name: "default",
 		}
-		config.Routes = default_endpoints
+		config.Routes = defaultEndpoints
 	} else {
 		file, e := ioutil.ReadFile(*c)
 		if e != nil {
@@ -252,7 +250,7 @@ func httpConfigParser(c *string) interface{} {
 		}
 	}
 	for i := 0; i < len(config.Routes); i++ {
-		config.Routes[i].path_re = regexp.MustCompile(config.Routes[i].Path)
+		config.Routes[i].pathRe = regexp.MustCompile(config.Routes[i].Path)
 	}
 
 	return config

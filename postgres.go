@@ -20,15 +20,15 @@ import (
 	"time"
 )
 
-var debug_postgres = flag.Bool("debug_postgres", false, "Debug postgres reassembly")
+var debugPostgres = flag.Bool("debug_postgres", false, "Debug postgres reassembly")
 
-var pg_sql_wsp *regexp.Regexp
-var pg_dealloc_re *regexp.Regexp
+var pgSQLWspRe *regexp.Regexp
+var pgDeallocRe *regexp.Regexp
 
 type queryMap struct {
-	query_re *regexp.Regexp
-	Query    string
-	Name     string
+	queryRe *regexp.Regexp
+	Query   string
+	Name    string
 }
 type postgresConfig struct {
 	AdhocStatements    []queryMap
@@ -36,18 +36,17 @@ type postgresConfig struct {
 }
 
 func postgresConfigParser(c *string) interface{} {
-	var config postgresConfig
-	config = postgresConfig{
+	config := postgresConfig{
 		PreparedStatements: make([]queryMap, 0),
 		AdhocStatements:    make([]queryMap, 0),
 	}
 	if c == nil {
-		var default_endpoints = make([]queryMap, 1)
-		default_endpoints[0] = queryMap{
+		var defaultDndpoints = make([]queryMap, 1)
+		defaultDndpoints[0] = queryMap{
 			Query: ".",
 			Name:  "",
 		}
-		config.PreparedStatements = default_endpoints
+		config.PreparedStatements = defaultDndpoints
 	} else {
 		file, e := ioutil.ReadFile(*c)
 		if e != nil {
@@ -59,221 +58,221 @@ func postgresConfigParser(c *string) interface{} {
 		}
 	}
 	for i := 0; i < len(config.AdhocStatements); i++ {
-		config.AdhocStatements[i].query_re = regexp.MustCompile(config.AdhocStatements[i].Query)
+		config.AdhocStatements[i].queryRe = regexp.MustCompile(config.AdhocStatements[i].Query)
 	}
 	for i := 0; i < len(config.PreparedStatements); i++ {
-		config.PreparedStatements[i].query_re = regexp.MustCompile(config.PreparedStatements[i].Query)
+		config.PreparedStatements[i].queryRe = regexp.MustCompile(config.PreparedStatements[i].Query)
 	}
 
 	return config
 }
 
 func init() {
-	pg_sql_wsp = regexp.MustCompile("[\\r\\n\\s]+")
-	pg_dealloc_re = regexp.MustCompile("(?i)^\\s*DEALLOCATE\\s+(\\S+)")
+	pgSQLWspRe = regexp.MustCompile(`[\r\n\s]+`)
+	pgDeallocRe = regexp.MustCompile(`(?i)^\s*DEALLOCATE\s+(\S+)`)
 }
 
 const (
-	pg_retainedPayloadSize int = 1024
+	pgRetainedPayloadSize int = 1024
 	// we make these up, the don't have codes
-	pg_Startup_F    = uint8(0)
-	pg_SSLRequest_F = uint8(1)
+	pgStartupF    = uint8(0)
+	pgSSLRequestF = uint8(1)
 
 	// frontend
-	pg_Bind_F            = uint8('B')
-	pg_Close_F           = uint8('C')
-	pg_CopyData_F        = uint8('d')
-	pg_CopyDone_F        = uint8('c')
-	pg_CopyFail_F        = uint8('f')
-	pg_Describe_F        = uint8('D')
-	pg_Execute_F         = uint8('E')
-	pg_Flush_F           = uint8('H')
-	pg_FunctionCall_F    = uint8('F')
-	pg_Parse_F           = uint8('P')
-	pg_PasswordMessage_F = uint8('p')
-	pg_Query_F           = uint8('Q')
-	pg_Sync_F            = uint8('S')
-	pg_Terminate_F       = uint8('X')
+	pgBindF            = uint8('B')
+	pgCloseF           = uint8('C')
+	pgCopyDataF        = uint8('d')
+	pgCopyDoneF        = uint8('c')
+	pgCopyFailF        = uint8('f')
+	pgDescribeF        = uint8('D')
+	pgExecuteF         = uint8('E')
+	pgFlushF           = uint8('H')
+	pgFunctionCallF    = uint8('F')
+	pgParseF           = uint8('P')
+	pgPasswordMessageF = uint8('p')
+	pgQueryF           = uint8('Q')
+	pgSyncF            = uint8('S')
+	pgTerminateF       = uint8('X')
 
 	// backend
-	pg_AuthenticationRequest_B = uint8('R')
-	pg_BackendKeyData_B        = uint8('K')
-	pg_BindComplete_B          = uint8('2')
-	pg_CloseComplete_B         = uint8('3')
-	pg_CommandComplete_B       = uint8('C')
-	pg_CopyData_B              = uint8('d')
-	pg_CopyDone_B              = uint8('c')
-	pg_CopyFail_B              = uint8('f')
-	pg_CopyInResponse_B        = uint8('G')
-	pg_CopyOutResponse_B       = uint8('H')
-	pg_CopyBothResponse_B      = uint8('W')
-	pg_DataRow_B               = uint8('D')
-	pg_EmptyQueryResponse_B    = uint8('I')
-	pg_ErrorResponse_B         = uint8('E')
-	pg_FunctionCallResponse_B  = uint8('V')
-	pg_NoData_B                = uint8('n')
-	pg_NoticeResponse_B        = uint8('N')
-	pg_NotificationResponse_B  = uint8('A')
-	pg_ParameterDescription_B  = uint8('t')
-	pg_ParameterStatus_B       = uint8('S')
-	pg_ParseComplete_B         = uint8('1')
-	pg_PortalSuspended_B       = uint8('s')
-	pg_ReadyForQuery_B         = uint8('Z')
-	pg_RowDescription_B        = uint8('T')
+	pgAuthenticationRequestB = uint8('R')
+	pgBackendKeyDataB        = uint8('K')
+	pgBindCompleteB          = uint8('2')
+	pgCloseCompleteB         = uint8('3')
+	pgCommandCompleteB       = uint8('C')
+	pgCopyDataB              = uint8('d')
+	pgCopyDoneB              = uint8('c')
+	pgCopyFailB              = uint8('f')
+	pgCopyInResponseB        = uint8('G')
+	pgCopyOutResponseB       = uint8('H')
+	pgCopyBothResponseB      = uint8('W')
+	pgDataRowB               = uint8('D')
+	pgEmptyQueryResponseB    = uint8('I')
+	pgErrorResponseB         = uint8('E')
+	pgFunctionCallResponseB  = uint8('V')
+	pgNoDataB                = uint8('n')
+	pgNoticeResponseB        = uint8('N')
+	pgNotificationResponseB  = uint8('A')
+	pgParameterDescriptionB  = uint8('t')
+	pgParameterStatusB       = uint8('S')
+	pgParseCompleteB         = uint8('1')
+	pgPortalSuspendedB       = uint8('s')
+	pgReadyForQueryB         = uint8('Z')
+	pgRowDescriptionB        = uint8('T')
 )
 
-type postgres_frame struct {
-	inbound      bool
-	first        bool
-	complete     bool
-	so_far       int
-	command      uint8
-	length       uint32
-	length_bytes [4]byte
-	payload      []byte
-	truncated    bool // don't use the payload, it's not all there
+type postgresFrame struct {
+	inbound     bool
+	first       bool
+	complete    bool
+	soFar       int
+	command     uint8
+	length      uint32
+	lengthBytes [4]byte
+	payload     []byte
+	truncated   bool // don't use the payload, it's not all there
 
 	//
-	timestamp      time.Time
-	should_log     bool
-	longname       string
-	response_bytes int
-	response_rows  int
+	timestamp     time.Time
+	shouldLog     bool
+	longname      string
+	responseBytes int
+	responseRows  int
 }
-type postgres_Parser struct {
-	factory          *postgres_ParserFactory
-	stream           []postgres_frame
-	request_frame    postgres_frame
-	response_frame   postgres_frame
-	prepared_queries map[string]string
-	portals          map[string]string
+type postgresParser struct {
+	factory         *postgresParserFactory
+	stream          []postgresFrame
+	requestFrame    postgresFrame
+	responseFrame   postgresFrame
+	preparedQueries map[string]string
+	portals         map[string]string
 }
 
-func postgres_frame_CommandName_B(code uint8) (string, bool) {
+func postgresFrameCommandNameB(code uint8) (string, bool) {
 	switch code {
-	case pg_AuthenticationRequest_B:
+	case pgAuthenticationRequestB:
 		return "AuthenticationRequest", true
-	case pg_BackendKeyData_B:
+	case pgBackendKeyDataB:
 		return "BackendKeyData", true
-	case pg_BindComplete_B:
+	case pgBindCompleteB:
 		return "BindComplete", true
-	case pg_CloseComplete_B:
+	case pgCloseCompleteB:
 		return "CloseComplete", true
-	case pg_CommandComplete_B:
+	case pgCommandCompleteB:
 		return "CommandComplete", true
-	case pg_CopyData_B:
+	case pgCopyDataB:
 		return "CopyData", true
-	case pg_CopyDone_B:
+	case pgCopyDoneB:
 		return "CopyDone", true
-	case pg_CopyFail_B:
+	case pgCopyFailB:
 		return "CopyFail", true
-	case pg_CopyInResponse_B:
+	case pgCopyInResponseB:
 		return "CopyInResponse", true
-	case pg_CopyOutResponse_B:
+	case pgCopyOutResponseB:
 		return "CopyOutResponse", true
-	case pg_CopyBothResponse_B:
+	case pgCopyBothResponseB:
 		return "CopyBothResponse", true
-	case pg_DataRow_B:
+	case pgDataRowB:
 		return "DataRow", true
-	case pg_EmptyQueryResponse_B:
+	case pgEmptyQueryResponseB:
 		return "EmptyQueryResponse", true
-	case pg_ErrorResponse_B:
+	case pgErrorResponseB:
 		return "ErrorResponse", true
-	case pg_FunctionCallResponse_B:
+	case pgFunctionCallResponseB:
 		return "FunctionCallResponse", true
-	case pg_NoData_B:
+	case pgNoDataB:
 		return "NoData", true
-	case pg_NoticeResponse_B:
+	case pgNoticeResponseB:
 		return "NoticeResponse", true
-	case pg_NotificationResponse_B:
+	case pgNotificationResponseB:
 		return "NotificationResponse", true
-	case pg_ParameterDescription_B:
+	case pgParameterDescriptionB:
 		return "ParameterDescription", true
-	case pg_ParameterStatus_B:
+	case pgParameterStatusB:
 		return "ParameterStatus", true
-	case pg_ParseComplete_B:
+	case pgParseCompleteB:
 		return "ParseComplete", true
-	case pg_PortalSuspended_B:
+	case pgPortalSuspendedB:
 		return "PortalSuspended", true
-	case pg_ReadyForQuery_B:
+	case pgReadyForQueryB:
 		return "ReadyForQuery", true
-	case pg_RowDescription_B:
+	case pgRowDescriptionB:
 		return "RowDescription", true
 	}
 	return fmt.Sprintf("unknown:%d", code), false
 }
-func postgres_frame_CommandName_F(code uint8) (string, bool) {
+func postgresFrameCommandNameF(code uint8) (string, bool) {
 	switch code {
-	case pg_Startup_F:
+	case pgStartupF:
 		return "Startup", true
-	case pg_SSLRequest_F:
+	case pgSSLRequestF:
 		return "SSLRequest", true
-	case pg_Bind_F:
+	case pgBindF:
 		return "Bind", true
-	case pg_Close_F:
+	case pgCloseF:
 		return "Close", true
-	case pg_CopyData_F:
+	case pgCopyDataF:
 		return "CopyData", true
-	case pg_CopyDone_F:
+	case pgCopyDoneF:
 		return "CopyDone", true
-	case pg_CopyFail_F:
+	case pgCopyFailF:
 		return "CopyFail", true
-	case pg_Describe_F:
+	case pgDescribeF:
 		return "Describe", true
-	case pg_Execute_F:
+	case pgExecuteF:
 		return "Execute", true
-	case pg_Flush_F:
+	case pgFlushF:
 		return "Flush", true
-	case pg_FunctionCall_F:
+	case pgFunctionCallF:
 		return "FunctionCall", true
-	case pg_Parse_F:
+	case pgParseF:
 		return "Parse", true
-	case pg_PasswordMessage_F:
+	case pgPasswordMessageF:
 		return "PasswordMessage", true
-	case pg_Query_F:
+	case pgQueryF:
 		return "Query", true
-	case pg_Sync_F:
+	case pgSyncF:
 		return "Sync", true
-	case pg_Terminate_F:
+	case pgTerminateF:
 		return "Terminate", true
 	}
 	return fmt.Sprintf("unknown: %c", code), false
 }
-func (f *postgres_frame) CommandName() string {
+func (f *postgresFrame) CommandName() string {
 	if f.inbound {
-		name, _ := postgres_frame_CommandName_F(f.command)
+		name, _ := postgresFrameCommandNameF(f.command)
 		return name
 	}
-	name, _ := postgres_frame_CommandName_B(f.command)
+	name, _ := postgresFrameCommandNameB(f.command)
 	return name
 }
-func (f *postgres_frame) copy() *postgres_frame {
-	f_copy := *f
+func (f *postgresFrame) copy() *postgresFrame {
+	newFrame := *f
 	// someone is going to squat on the payload, it's not ours anymore
-	f_copy.payload = nil
-	return &f_copy
+	newFrame.payload = nil
+	return &newFrame
 }
-func (f *postgres_frame) validateIn() bool {
-	_, valid := postgres_frame_CommandName_F(f.command)
+func (f *postgresFrame) validateIn() bool {
+	_, valid := postgresFrameCommandNameF(f.command)
 	return valid
 }
-func (f *postgres_frame) validateOut() bool {
-	_, valid := postgres_frame_CommandName_B(f.command)
+func (f *postgresFrame) validateOut() bool {
+	_, valid := postgresFrameCommandNameB(f.command)
 	return valid
 }
-func (f *postgres_frame) init() {
+func (f *postgresFrame) init() {
 	f.first = false
 	f.complete = false
-	f.so_far = 0
+	f.soFar = 0
 	f.command = 0
 	f.length = 0
 	f.truncated = false
-	f.response_rows = 0
-	f.response_bytes = 0
-	f.should_log = false
+	f.responseRows = 0
+	f.responseBytes = 0
+	f.shouldLog = false
 	f.longname = ""
-	if f.payload == nil || cap(f.payload) != pg_retainedPayloadSize {
-		f.payload = make([]byte, 0, pg_retainedPayloadSize)
+	if f.payload == nil || cap(f.payload) != pgRetainedPayloadSize {
+		f.payload = make([]byte, 0, pgRetainedPayloadSize)
 	}
 	f.payload = f.payload[:0]
 }
@@ -283,11 +282,11 @@ func (f *postgres_frame) init() {
 // the number of bytes of the passed data used.  used should
 // be the entire data size if frame is incomplete
 // If things go off the rails unrecoverably, used = -1 is returned
-func (f *postgres_frame) fillFrame(seen time.Time, data []byte) (complete bool, used int) {
+func (f *postgresFrame) fillFrame(seen time.Time, data []byte) (complete bool, used int) {
 	if len(data) < 1 {
 		return false, 0
 	}
-	if f.so_far == 0 {
+	if f.soFar == 0 {
 		f.timestamp = seen
 		if f.inbound && data[used] != 0 {
 			// We might be thinking about a first frame, but that's not going
@@ -298,14 +297,14 @@ func (f *postgres_frame) fillFrame(seen time.Time, data []byte) (complete bool, 
 			// The first packet is disgusting... it could be
 			// a Startup or SSLRequest on the F side
 			// or a single character response with no length on the B side
-			if *debug_postgres {
+			if *debugPostgres {
 				log.Printf("[DEBUG] expecting startup frame")
 			}
 			if f.inbound {
-				f.command = pg_Startup_F
+				f.command = pgStartupF
 			} else {
 				f.command = data[used]
-				used = used + 1
+				used++
 				if f.command == uint8('N') {
 					f.complete = true
 					return true, used
@@ -318,86 +317,86 @@ func (f *postgres_frame) fillFrame(seen time.Time, data []byte) (complete bool, 
 		} else {
 			// Normal packes are sensible, first byte is command
 			f.command = data[used]
-			used = used + 1
+			used++
 		}
-		f.so_far = f.so_far + 1
+		f.soFar++
 	}
 	// Next four bytes are the length (inclusive of the four bytes?!)
-	for ; used < len(data) && f.so_far < 5; f.so_far, used = f.so_far+1, used+1 {
-		switch f.so_far {
+	for ; used < len(data) && f.soFar < 5; f.soFar, used = f.soFar+1, used+1 {
+		switch f.soFar {
 		case 1:
-			f.length_bytes[0] = data[used]
+			f.lengthBytes[0] = data[used]
 		case 2:
-			f.length_bytes[1] = data[used]
+			f.lengthBytes[1] = data[used]
 		case 3:
-			f.length_bytes[2] = data[used]
+			f.lengthBytes[2] = data[used]
 		case 4:
-			f.length_bytes[3] = data[used]
-			f.length = binary.BigEndian.Uint32(f.length_bytes[:])
+			f.lengthBytes[3] = data[used]
+			f.length = binary.BigEndian.Uint32(f.lengthBytes[:])
 		}
 	}
-	if f.so_far < 5 {
+	if f.soFar < 5 {
 		return false, used
 	}
 
 	// Now we read in the legnth
-	remaining := f.length - uint32(f.so_far-1)
-	to_append := remaining // how much we're actually reading
+	remaining := f.length - uint32(f.soFar-1)
+	toAppend := remaining // how much we're actually reading
 	if uint32(len(data)-used) < remaining {
 		// not complete
-		to_append = uint32(len(data) - used)
+		toAppend = uint32(len(data) - used)
 	}
-	capped_append := to_append // how much we're actually writing
-	if len(f.payload)+int(to_append) > cap(f.payload) {
-		capped_append = uint32(cap(f.payload) - len(f.payload))
+	cappedAppend := toAppend // how much we're actually writing
+	if len(f.payload)+int(toAppend) > cap(f.payload) {
+		cappedAppend = uint32(cap(f.payload) - len(f.payload))
 		f.truncated = true
 	}
-	if capped_append > 0 {
-		f.payload = append(f.payload, data[used:(used+int(capped_append))]...)
+	if cappedAppend > 0 {
+		f.payload = append(f.payload, data[used:(used+int(cappedAppend))]...)
 	}
-	used = used + int(to_append)
-	f.so_far = f.so_far + int(to_append)
-	if remaining == to_append {
+	used += int(toAppend)
+	f.soFar += int(toAppend)
+	if remaining == toAppend {
 		f.complete = true
-		if f.inbound && f.first && f.command == pg_Startup_F {
+		if f.inbound && f.first && f.command == pgStartupF {
 			// our startup message could be an SSLRequest
-			if len(f.payload) == 4 && binary.BigEndian.Uint32(f.payload[:]) == 80877103 {
+			if len(f.payload) == 4 && binary.BigEndian.Uint32(f.payload) == 80877103 {
 				// alter this post-facto to an SSLRequest so we can expect the
 				// non-compliant response packet
-				f.command = pg_SSLRequest_F
+				f.command = pgSSLRequestF
 			}
 		}
-		if *debug_postgres {
+		if *debugPostgres {
 			log.Printf("[DEBUG] frame completed")
 		}
 		return true, used
 	}
-	if *debug_postgres {
+	if *debugPostgres {
 		log.Printf("[DEBUG] frame pending")
 	}
 	return false, used
 }
-func (p *postgres_Parser) pushStream(f *postgres_frame) {
+func (p *postgresParser) pushStream(f *postgresFrame) {
 	p.stream = append(p.stream, *f)
 }
-func (p *postgres_Parser) popStream() (f *postgres_frame) {
+func (p *postgresParser) popStream() (f *postgresFrame) {
 	f = nil
 	if len(p.stream) > 0 {
 		f, p.stream = &p.stream[0], p.stream[1:]
 	}
 	return f
 }
-func (p *postgres_Parser) peekStream() (f *postgres_frame) {
+func (p *postgresParser) peekStream() (f *postgresFrame) {
 	if len(p.stream) > 0 {
 		return &p.stream[0]
 	}
 	return nil
 }
-func (p *postgres_Parser) flushStream() {
-	p.stream = make([]postgres_frame, 0, 2)
+func (p *postgresParser) flushStream() {
+	p.stream = make([]postgresFrame, 0, 2)
 }
 
-func pg_read_string(data []byte) (string, int) {
+func pgReadString(data []byte) (string, int) {
 	for i, c := range data {
 		if c == 0 {
 			return string(data[0:i]), i
@@ -405,61 +404,64 @@ func pg_read_string(data []byte) (string, int) {
 	}
 	return "", -1
 }
-func (p *postgres_Parser) bind(req, resp *postgres_frame) {
-	if req.command != pg_Bind_F {
-		if *debug_postgres {
+func (p *postgresParser) bind(req, resp *postgresFrame) {
+	if req.command != pgBindF {
+		if *debugPostgres {
 			log.Printf("[DEBUG] out-of-order %v->%v", req.CommandName(), resp.CommandName())
 		}
 	}
 	var name string
-	portal, plen := pg_read_string(req.payload)
+	portal, plen := pgReadString(req.payload)
 	if plen < 0 {
 		return
 	}
-	name, nlen := pg_read_string(req.payload[plen+1:])
+	name, nlen := pgReadString(req.payload[plen+1:])
 	if nlen < 0 {
 		return
 	}
 	p.portals[portal] = name
 }
-func (p *postgres_Parser) store(req, resp *postgres_frame) {
-	if req.command != pg_Parse_F {
-		if *debug_postgres {
+func (p *postgresParser) store(req, resp *postgresFrame) {
+	if req.command != pgParseF {
+		if *debugPostgres {
 			log.Printf("[DEBUG] out-of-order %v->%v", req.CommandName(), resp.CommandName())
 		}
 	}
 	var name string
-	name, len := pg_read_string(req.payload)
+	name, len := pgReadString(req.payload)
 	if len >= 0 {
-		query, qlen := pg_read_string(req.payload[len+1:])
+		query, qlen := pgReadString(req.payload[len+1:])
 		if qlen >= 0 {
-			p.prepared_queries[name] =
-				strings.TrimSpace(pg_sql_wsp.ReplaceAllLiteralString(query, " "))
-			if *debug_postgres {
-				log.Printf("PARSED[%v] %v", name, p.prepared_queries[name])
+			p.preparedQueries[name] =
+				strings.TrimSpace(pgSQLWspRe.ReplaceAllLiteralString(query, " "))
+			if *debugPostgres {
+				log.Printf("PARSED[%v] %v", name, p.preparedQueries[name])
 			}
 		}
 	}
 }
-func (p *postgres_Parser) extract(config postgresConfig, req *postgres_frame) {
-	req.should_log = true
+func (p *postgresParser) extract(config postgresConfig, req *postgresFrame) {
+	req.shouldLog = true
 	switch req.command {
-	case pg_Parse_F:
-		req.should_log = false
-	case pg_Execute_F:
-		if pname, len := pg_read_string(req.payload); len >= 0 {
+	case pgParseF:
+		req.shouldLog = false
+	case pgExecuteF:
+		if pname, len := pgReadString(req.payload); len >= 0 {
 			if portal, ok := p.portals[pname]; ok {
-				if query, ok := p.prepared_queries[portal]; ok {
+				if query, ok := p.preparedQueries[portal]; ok {
 					for _, qm := range config.PreparedStatements {
-						if qm.query_re.MatchString(query) {
-							if qm.Name == "RAW" {
+						if qm.queryRe.MatchString(query) {
+							switch qm.Name {
+							case "RAW":
 								req.longname = "Execute`" + query
-							} else if qm.Name == "SHA256" {
+							case "SHA256":
 								bsum := sha256.Sum256([]byte(query))
 								csum := hex.EncodeToString(bsum[:])
 								req.longname = "Execute`" + csum
-							} else if qm.Name != "" {
+							case "":
 								req.longname = "Execute`" + qm.Name
+							default:
+								// do nothing
 							}
 							break
 						}
@@ -467,28 +469,31 @@ func (p *postgres_Parser) extract(config postgresConfig, req *postgres_frame) {
 				}
 			}
 		}
-	case pg_Query_F:
-		if pname, len := pg_read_string(req.payload); len >= 0 {
-			if *debug_postgres {
+	case pgQueryF:
+		if pname, len := pgReadString(req.payload); len >= 0 {
+			if *debugPostgres {
 				log.Printf("QUERY[%v]", pname)
 			}
-			if m := pg_dealloc_re.FindStringSubmatch(pname); m != nil {
-				if *debug_postgres {
+			if m := pgDeallocRe.FindStringSubmatch(pname); m != nil {
+				if *debugPostgres {
 					log.Printf("UNPARSE[%v]", m[1])
 				}
-				delete(p.prepared_queries, m[1])
-				req.should_log = false
+				delete(p.preparedQueries, m[1])
+				req.shouldLog = false
 			} else {
 				for _, qm := range config.AdhocStatements {
-					if qm.query_re.MatchString(pname) {
-						if qm.Name == "RAW" {
+					if qm.queryRe.MatchString(pname) {
+						switch qm.Name {
+						case "RAW":
 							req.longname = "Query`" + pname
-						} else if qm.Name == "SHA256" {
+						case "SHA256":
 							bsum := sha256.Sum256([]byte(pname))
 							csum := hex.EncodeToString(bsum[:])
 							req.longname = "Query`" + csum
-						} else if qm.Name != "" {
+						case "":
 							req.longname = "Query`" + qm.Name
+						default:
+							// do nothing
 						}
 						break
 					}
@@ -497,100 +502,104 @@ func (p *postgres_Parser) extract(config postgresConfig, req *postgres_frame) {
 		}
 	}
 }
-func (p *postgres_Parser) report(config postgresConfig, req, resp *postgres_frame) {
-	should_log := req.should_log
+func (p *postgresParser) report(config postgresConfig, req, resp *postgresFrame) {
+	shouldLog := req.shouldLog
 	name := req.CommandName()
 	duration := resp.timestamp.Sub(req.timestamp)
 	types := make([]string, 1, 5)
 	types[0] = ""
 	result := ""
-	if resp.command == pg_CommandComplete_B {
+	if resp.command == pgCommandCompleteB {
 		var len int
-		if result, len = pg_read_string(resp.payload); len >= 0 {
-			if *debug_postgres {
+		if result, len = pgReadString(resp.payload); len >= 0 {
+			if *debugPostgres {
 				log.Printf("[COMPLETE] %v", result)
 			}
 		}
 	}
-	if rfields := strings.Fields(result); rfields != nil && len(rfields) > 1 {
+	if rfields := strings.Fields(result); len(rfields) > 1 {
 		types = append(types, "`"+rfields[0])
 		if nrows, err := strconv.ParseInt(rfields[len(rfields)-1], 10, 32); err == nil {
-			req.response_rows = int(nrows)
+			req.responseRows = int(nrows)
 		}
 	}
-	if should_log {
+	if shouldLog {
 		for _, typename := range types {
-			wl_track_int64("bytes", int64(req.length), name+typename+"`request_bytes")
-			wl_track_int64("bytes", int64(req.response_bytes), name+typename+"`response_bytes")
-			wl_track_int64("tuples", int64(req.response_rows), name+typename+"`response_rows")
-			wl_track_float64("seconds", float64(duration)/1000000000.0, name+typename+"`latency")
+			wlTrackInt64("bytes", int64(req.length), name+typename+"`request_bytes")
+			wlTrackInt64("bytes", int64(req.responseBytes), name+typename+"`response_bytes")
+			wlTrackInt64("tuples", int64(req.responseRows), name+typename+"`response_rows")
+			wlTrackFloat64("seconds", float64(duration)/1000000000.0, name+typename+"`latency")
 		}
 		if req.longname != "" {
-			wl_track_int64("bytes", int64(req.length), req.longname+"`request_bytes")
-			wl_track_int64("bytes", int64(req.response_bytes), req.longname+"`response_bytes")
-			wl_track_int64("tuples", int64(req.response_rows), req.longname+"`response_rows")
-			wl_track_float64("seconds", float64(duration)/1000000000.0, req.longname+"`latency")
+			wlTrackInt64("bytes", int64(req.length), req.longname+"`request_bytes")
+			wlTrackInt64("bytes", int64(req.responseBytes), req.longname+"`response_bytes")
+			wlTrackInt64("tuples", int64(req.responseRows), req.longname+"`response_rows")
+			wlTrackFloat64("seconds", float64(duration)/1000000000.0, req.longname+"`latency")
 		}
 	}
 }
-func (p *postgres_Parser) reset() {
-	p.stream = make([]postgres_frame, 1)
-	p.request_frame.init()
-	p.request_frame.inbound = true
-	p.response_frame.init()
+func (p *postgresParser) reset() {
+	p.stream = make([]postgresFrame, 1)
+	p.requestFrame.init()
+	p.requestFrame.inbound = true
+	p.responseFrame.init()
 }
-func (p *postgres_Parser) InBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
+func (p *postgresParser) InBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
 	// build a request
 	for {
 		if len(data) == 0 {
 			return true
 		}
-		if complete, used := p.request_frame.fillFrame(seen, data); complete {
-			if p.request_frame.first && p.request_frame.command <= pg_SSLRequest_F {
-				p.response_frame.first = (p.request_frame.command == pg_SSLRequest_F)
-				p.request_frame.init()
-				data = data[used:]
-				continue
-			}
-			if !p.request_frame.validateIn() {
-				if *debug_postgres {
-					log.Printf("<- BAD FRAME: %v", p.request_frame.CommandName())
-				}
-				p.reset()
-				return true
-			}
-			switch p.request_frame.command {
-			case pg_Bind_F:
-				fallthrough
-			case pg_Query_F:
-				fallthrough
-			case pg_Execute_F:
-				fallthrough
-			case pg_Parse_F:
-				if *debug_postgres {
-					log.Printf("<- %v queued", p.request_frame.CommandName())
-				}
-				p.extract(stream.factory.config.(postgresConfig), &p.request_frame)
-				p.pushStream(p.request_frame.copy())
-			default:
-				if *debug_postgres {
-					log.Printf("<- %v discard", p.request_frame.CommandName())
-				}
-			}
-			data = data[used:]
-			p.request_frame.init()
-		} else if used < 0 {
-			if *debug_postgres {
+
+		complete, used := p.requestFrame.fillFrame(seen, data)
+		if !complete {
+			return true
+		}
+		if used < 0 {
+			if *debugPostgres {
 				log.Printf("<- BAD READ IN: %v", used)
 			}
 			p.reset()
 			return true
-		} else if !complete {
-			return true
+		}
+		if complete {
+			if p.requestFrame.first && p.requestFrame.command <= pgSSLRequestF {
+				p.responseFrame.first = (p.requestFrame.command == pgSSLRequestF)
+				p.requestFrame.init()
+				data = data[used:]
+				continue
+			}
+			if !p.requestFrame.validateIn() {
+				if *debugPostgres {
+					log.Printf("<- BAD FRAME: %v", p.requestFrame.CommandName())
+				}
+				p.reset()
+				return true
+			}
+			switch p.requestFrame.command {
+			case pgBindF:
+				fallthrough
+			case pgQueryF:
+				fallthrough
+			case pgExecuteF:
+				fallthrough
+			case pgParseF:
+				if *debugPostgres {
+					log.Printf("<- %v queued", p.requestFrame.CommandName())
+				}
+				p.extract(stream.factory.config.(postgresConfig), &p.requestFrame)
+				p.pushStream(p.requestFrame.copy())
+			default:
+				if *debugPostgres {
+					log.Printf("<- %v discard", p.requestFrame.CommandName())
+				}
+			}
+			data = data[used:]
+			p.requestFrame.init()
 		}
 	}
 }
-func (p *postgres_Parser) OutBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
+func (p *postgresParser) OutBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
 	var pgConfig postgresConfig
 	if stream == nil || stream.factory == nil || stream.factory.config == nil {
 		return false
@@ -600,89 +609,92 @@ func (p *postgres_Parser) OutBytes(stream *tcpTwoWayStream, seen time.Time, data
 		if len(data) == 0 {
 			return true
 		}
-		if complete, used := p.response_frame.fillFrame(seen, data); complete {
-			if p.response_frame.first {
-				if p.response_frame.command != uint8('N') {
-					if *debug_postgres {
+		complete, used := p.responseFrame.fillFrame(seen, data)
+		if !complete {
+			return true
+		}
+		if used < 0 {
+			if *debugPostgres {
+				log.Printf("-> BAD READ OUT: %v", used)
+			}
+			p.reset()
+			return true
+		}
+		if complete {
+			if p.responseFrame.first {
+				if p.responseFrame.command != uint8('N') {
+					if *debugPostgres {
 						log.Printf("[DEBUG] abandoning SSL session")
 					}
 					return false
 				}
-				if *debug_capture {
+				if *debugCapture {
 					log.Printf("[DEBUG] SSLRequest denied, normal startup")
 				}
 				data = data[used:]
-				p.response_frame.init()
-				p.request_frame.first = true
+				p.responseFrame.init()
+				p.requestFrame.first = true
 				continue
 			}
-			if !p.response_frame.validateOut() {
-				if *debug_postgres {
-					log.Printf("-> BAD FRAME: %v", p.request_frame.CommandName())
+			if !p.responseFrame.validateOut() {
+				if *debugPostgres {
+					log.Printf("-> BAD FRAME: %v", p.requestFrame.CommandName())
 				}
 				p.reset()
 				return true
 			}
 			req := p.peekStream()
 			if req != nil {
-				req.response_bytes += p.response_frame.so_far
+				req.responseBytes += p.responseFrame.soFar
 			}
 
-			if *debug_postgres {
-				log.Printf("-> %v", p.response_frame.CommandName())
+			if *debugPostgres {
+				log.Printf("-> %v", p.responseFrame.CommandName())
 			}
-			if p.response_frame.command == pg_ReadyForQuery_B {
+			if p.responseFrame.command == pgReadyForQueryB {
 				p.flushStream()
 				req = nil
 			}
 			if req != nil {
-				switch p.response_frame.command {
-				case pg_DataRow_B:
-					req.response_rows++
-				case pg_BindComplete_B:
-					p.bind(p.popStream(), &p.response_frame)
-				case pg_ParseComplete_B:
-					p.store(p.popStream(), &p.response_frame)
-				case pg_CommandComplete_B:
-					p.report(pgConfig, p.popStream(), &p.response_frame)
+				switch p.responseFrame.command {
+				case pgDataRowB:
+					req.responseRows++
+				case pgBindCompleteB:
+					p.bind(p.popStream(), &p.responseFrame)
+				case pgParseCompleteB:
+					p.store(p.popStream(), &p.responseFrame)
+				case pgCommandCompleteB:
+					p.report(pgConfig, p.popStream(), &p.responseFrame)
 				}
 			}
 
 			data = data[used:]
-			p.response_frame.init()
-		} else if used < 0 {
-			if *debug_postgres {
-				log.Printf("-> BAD READ OUT: %v", used)
-			}
-			p.reset()
-			return true
-		} else if !complete {
-			return true
+			p.responseFrame.init()
 		}
 	}
 }
-func (p *postgres_Parser) ManageIn(stream *tcpTwoWayStream) {
+func (p *postgresParser) ManageIn(stream *tcpTwoWayStream) {
 	panic("postgres wirelatency parser is not async")
 }
-func (p *postgres_Parser) ManageOut(stream *tcpTwoWayStream) {
+func (p *postgresParser) ManageOut(stream *tcpTwoWayStream) {
 	panic("postgres wirelatency parser is not async")
 }
 
-type postgres_ParserFactory struct {
-	parsed map[uint16]string
+type postgresParserFactory struct {
+	// parsed map[uint16]string
 }
 
-func (f *postgres_ParserFactory) New() TCPProtocolInterpreter {
-	p := postgres_Parser{}
+func (f *postgresParserFactory) New() TCPProtocolInterpreter {
+	p := postgresParser{}
 	p.factory = f
-	p.prepared_queries = make(map[string]string)
+	p.preparedQueries = make(map[string]string)
 	p.portals = make(map[string]string)
 	p.reset()
-	p.request_frame.first = true
+	p.requestFrame.first = true
 	return &p
 }
 func init() {
-	factory := &postgres_ParserFactory{}
+	factory := &postgresParserFactory{}
 	postgresProt := &TCPProtocol{
 		name:        "postgres",
 		defaultPort: 5432,

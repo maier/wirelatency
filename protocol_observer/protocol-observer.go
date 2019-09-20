@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 //
 
-// +build go1.11
+// +build go1.13
 
 package main
 
@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/circonus-labs/circonus-gometrics/v3"
+	cgm "github.com/circonus-labs/circonus-gometrics/v3"
 	"github.com/circonus-labs/wirelatency"
 	"github.com/google/gopacket/layers"
 	"github.com/pkg/errors"
@@ -95,14 +95,8 @@ var autoRestart = flag.String("auto_restart", "", "Restart duration")
 
 func main() {
 	var origArgs = make([]string, len(os.Args))
-	for idx, arg := range os.Args {
-		origArgs[idx] = arg
-	}
-
-	var origEnv = make([]string, len(os.Environ()))
-	for idx, arg := range os.Environ() {
-		origEnv[idx] = arg
-	}
+	copy(origArgs, os.Args)
+	origEnv := os.Environ()
 
 	var localIPFlag localip
 	flag.Var(&localIPFlag, "localip", "<ipaddress>")
@@ -120,23 +114,25 @@ func main() {
 		if err != nil {
 			log.Fatalf("Bad auto_restart duration: %v\n", err)
 		}
-		go (func(d time.Duration) {
+		go func(d time.Duration) {
 			time.Sleep(d)
 			wirelatency.Close()
-			syscall.Exec(origArgs[0], origArgs, origEnv)
+			if err := syscall.Exec(origArgs[0], origArgs, origEnv); err != nil {
+				log.Fatalf("Failed to start process replacement (%v)\n", err)
+			}
 			log.Fatalf("Failed process replacement\n")
-		})(dur)
+		}(dur)
 	}
 
 	if *pprofNet > 0 {
 		go func() {
-			http.ListenAndServe("localhost:"+strconv.Itoa(*pprofNet), nil)
+			log.Println(http.ListenAndServe("localhost:"+strconv.Itoa(*pprofNet), nil))
 		}()
 	}
 	if *apitoken == "" && *submissionurl == "" {
 		log.Printf("No Circonus API Token specified, no reporting will happen.")
 	} else {
-		cfg := &circonusgometrics.Config{}
+		cfg := &cgm.Config{}
 		cfg.CheckManager.Check.InstanceID = *instanceid
 		cfg.CheckManager.Check.SubmissionURL = *submissionurl
 		cfg.CheckManager.Check.ID = *checkid
@@ -145,7 +141,7 @@ func main() {
 		cfg.CheckManager.API.URL = *apiurl
 		cfg.CheckManager.API.TokenKey = *apitoken
 		cfg.Debug = *debugCirconus
-		metrics, err := circonusgometrics.NewCirconusMetrics(cfg)
+		metrics, err := cgm.NewCirconusMetrics(cfg)
 		if err != nil {
 			log.Printf("Error initializing Circonus metrics, no reporting will happen. (%v)", err)
 		} else {
@@ -172,7 +168,7 @@ func main() {
 		os.Exit(2)
 	}
 	for port, twa := range mapping {
-		config := (*twa).Config
+		config := twa.Config
 		if !*quiet {
 			if config == nil {
 				log.Printf("\t*:%v -> %v", port, (*twa.Proto()).Name())

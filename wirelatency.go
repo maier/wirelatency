@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 //
 
-// +build go1.11
+// +build go1.13
 
 package wirelatency
 
@@ -16,15 +16,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/circonus-labs/circonus-gometrics/v3"
+	cgm "github.com/circonus-labs/circonus-gometrics/v3"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/tcpassembly"
 )
 
-var metrics *circonusgometrics.CirconusMetrics
-var debug_measurements = flag.Bool("debug_measurements", false, "Debug measurement recording")
+var metrics *cgm.CirconusMetrics
+var debugMeasurements = flag.Bool("debug_measurements", false, "Debug measurement recording")
 var haveLocalAddresses = false
 var localAddresses = make(map[gopacket.Endpoint]bool)
 
@@ -39,47 +39,67 @@ func AddLocalIP(ip net.IP) {
 	}
 }
 
-func wl_track_int64(units string, value int64, name string) {
-	if *debug_measurements {
-		log.Printf("[METRIC] %s -> %d %s", name, value, units)
+func defaultTags(units string) cgm.Tags {
+	tags := cgm.Tags{}
+	if units != "" {
+		tags = append(tags, cgm.Tag{
+			Category: "units",
+			Value:    units,
+		})
 	}
-	if metrics != nil {
-		metrics.SetHistogramValue(name, float64(value))
-	}
+	return tags
 }
-func wl_track_float64(units string, value float64, name string) {
-	if *debug_measurements {
-		log.Printf("[METRIC] %s -> %e %s", name, value, units)
+
+func wlTrackInt64(units string, value int64, name string) {
+	tags := defaultTags(units)
+	wlTrackInt64Tagged(name, value, tags)
+}
+func wlTrackInt64Tagged(name string, value int64, tags cgm.Tags) {
+	if *debugMeasurements {
+		log.Printf("[METRIC] %s -> %d %v", name, value, tags)
 	}
 	if metrics != nil {
-		metrics.SetHistogramValue(name, value)
+		metrics.SetHistogramValueWithTags(name, tags, float64(value))
 	}
 }
 
-func SetMetrics(m *circonusgometrics.CirconusMetrics) {
+func wlTrackFloat64(units string, value float64, name string) {
+	tags := defaultTags(units)
+	wlTrackFloat64Tagged(name, value, tags)
+}
+func wlTrackFloat64Tagged(name string, value float64, tags cgm.Tags) {
+	if *debugMeasurements {
+		log.Printf("[METRIC] %s -> %e %v", name, value, tags)
+	}
+	if metrics != nil {
+		metrics.SetHistogramValueWithTags(name, tags, value)
+	}
+}
+
+func SetMetrics(m *cgm.CirconusMetrics) {
 	metrics = m
 }
 
-type WireLatencyTCPProtocol interface {
+type WLTCPProtocol interface {
 	Name() string
 	DefaultPort() layers.TCPPort
 	Factory(port layers.TCPPort, config *string) tcpassembly.StreamFactory
 }
 
 type twoWayAssembly struct {
-	proto     *WireLatencyTCPProtocol
+	proto     *WLTCPProtocol
 	assembler *tcpassembly.Assembler
 	Config    *string
 }
 
-func (twa *twoWayAssembly) Proto() *WireLatencyTCPProtocol {
+func (twa *twoWayAssembly) Proto() *WLTCPProtocol {
 	return twa.proto
 }
 
 var portAssemblerMap = make(map[layers.TCPPort]*twoWayAssembly)
-var protocols = make(map[string]*WireLatencyTCPProtocol)
+var protocols = make(map[string]*WLTCPProtocol)
 
-func RegisterTCPProtocol(protocol WireLatencyTCPProtocol) {
+func RegisterTCPProtocol(protocol WLTCPProtocol) {
 	protocols[protocol.Name()] = &protocol
 }
 
@@ -111,10 +131,10 @@ var flushAfter = flag.String("flush_after", "5s",
 var closeAfter = flag.String("close_after", "2m",
 	"Connections with gaps will closed and have buffered packets flushed after this timeout")
 var iface = flag.String("iface", "auto", "Select the system interface to sniff")
-var debug_capture_data = flag.Bool("debug_capture_data", false, "Debug packet capture data")
-var debug_capture = flag.Bool("debug_capture", false, "Debug packet assembly")
+var debugCaptureData = flag.Bool("debug_capture_data", false, "Debug packet capture data")
+var debugCapture = flag.Bool("debug_capture", false, "Debug packet assembly")
 
-func Protocols() map[string]*WireLatencyTCPProtocol {
+func Protocols() map[string]*WLTCPProtocol {
 	return protocols
 }
 func PortMap() map[layers.TCPPort]*twoWayAssembly {
@@ -126,14 +146,14 @@ func selectInterface() string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, iface_try := range ifaces {
-		addrs, err := iface_try.Addrs()
+	for _, ifaceTry := range ifaces {
+		addrs, err := ifaceTry.Addrs()
 		if err != nil {
-			log.Printf("Error on interface: %v", iface_try.Name)
+			log.Printf("Error on interface: %v", ifaceTry.Name)
 			continue
 		}
 		for _, ifi := range addrs {
-			try_iface := &iface_try.Name
+			tryIface := &ifaceTry.Name
 			if ip, _, _ := net.ParseCIDR(ifi.String()); ip != nil {
 				if ip.IsGlobalUnicast() {
 					if ip.To16() != nil {
@@ -144,7 +164,7 @@ func selectInterface() string {
 						haveLocalAddresses = true
 						localAddresses[gopacket.NewEndpoint(layers.EndpointIPv4, ip.To4())] = true
 						if *iface == "auto" {
-							choice = *try_iface
+							choice = *tryIface
 							iface = &choice
 						}
 					}
@@ -175,19 +195,19 @@ func Capture() {
 
 	// Construct our BPF filter
 	filter := "tcp and ("
-	subsequent_or := ""
+	subsequentOr := ""
 	for port := range portAssemblerMap {
-		filter = filter + subsequent_or + "port " + strconv.Itoa(int(port))
-		subsequent_or = " or "
+		filter = filter + subsequentOr + "port " + strconv.Itoa(int(port))
+		subsequentOr = " or "
 	}
-	filter = filter + ")"
+	filter += ")"
 
 	ifname := selectInterface()
 	promisc := false
 	if runtime.GOOS == "solaris" {
 		promisc = true
 	}
-	if *debug_capture {
+	if *debugCapture {
 		pstr := " "
 		if promisc {
 			pstr = " [promiscuous] "
@@ -207,20 +227,20 @@ func Capture() {
 	flushTicker := time.Tick(flushDuration / 2)
 	closeTicker := time.Tick(closeDuration / 2)
 
-	wake_up_and_gc := make(chan bool, 1)
-	go (func() {
+	wakeupAndGC := make(chan bool, 1)
+	go func() {
 		for {
-			if ok := <-wake_up_and_gc; !ok {
+			if ok := <-wakeupAndGC; !ok {
 				break
 			}
 			runtime.GC()
 		}
-	})()
+	}()
 
 	for {
 		select {
 		case <-flushTicker:
-			if *debug_capture {
+			if *debugCapture {
 				stats, _ := handle.Stats()
 				log.Printf("[DEBUG] flushing all streams that haven't seen packets, pcap stats: %+v", stats)
 			}
@@ -229,14 +249,14 @@ func Capture() {
 			}
 
 		case <-closeTicker:
-			if *debug_capture {
+			if *debugCapture {
 				stats, _ := handle.Stats()
 				log.Printf("[DEBUG] flushing all streams that haven't seen packets, pcap stats: %+v", stats)
 			}
 			for _, twa := range portAssemblerMap {
 				twa.assembler.FlushOlderThan(time.Now().Add(0 - closeDuration))
 			}
-			wake_up_and_gc <- true
+			wakeupAndGC <- true
 
 		case packet := <-packets:
 			if packet == nil {

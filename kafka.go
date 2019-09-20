@@ -18,270 +18,271 @@ import (
 	"github.com/golang/snappy"
 )
 
-var debug_kafka = flag.Bool("debug_kafka", false, "Debug kafka reassembly")
+var debugKafka = flag.Bool("debugKafka", false, "Debug kafka reassembly")
 
-type kafkaConfig struct {
-	dummy int
-}
+// type kafkaConfig struct {
+// 	dummy int
+// }
 
 func kafkaConfigParser(c *string) interface{} {
 	return nil
-	config := kafkaConfig{}
-	return config
+	// config := kafkaConfig{}
+	// return config
 }
 
 const (
-	kafka_ProduceRequest          = int16(0)
-	kafka_FetchRequest            = int16(1)
-	kafka_OffsetRequest           = int16(2)
-	kafka_MetadataRequest         = int16(3)
-	kafka_Control4                = int16(4)
-	kafka_Control5                = int16(5)
-	kafka_Control6                = int16(6)
-	kafka_Control7                = int16(7)
-	kafka_OffsetCommitRequest     = int16(8)
-	kafka_OffsetFetchRequest      = int16(9)
-	kafka_GroupCoordinatorRequest = int16(10)
-	kafka_JoinGroupRequest        = int16(11)
-	kafka_HeartbeatRequest        = int16(12)
-	kafka_LeaveGroupRequest       = int16(13)
-	kafka_SyncGroupRequest        = int16(14)
-	kafka_DescribeGroupsRequest   = int16(15)
-	kafka_ListGroupsRequest       = int16(16)
+	kafkaAPIProduceRequest          = int16(0)
+	kafkaAPIFetchRequest            = int16(1)
+	kafkaAPIOffsetRequest           = int16(2)
+	kafkaAPIMetadataRequest         = int16(3)
+	kafkaAPIControl4                = int16(4)
+	kafkaAPIControl5                = int16(5)
+	kafkaAPIControl6                = int16(6)
+	kafkaAPIControl7                = int16(7)
+	kafkaAPIOffsetCommitRequest     = int16(8)
+	kafkaAPIOffsetFetchRequest      = int16(9)
+	kafkaAPIGroupCoordinatorRequest = int16(10)
+	kafkaAPIJoinGroupRequest        = int16(11)
+	kafkaAPIHeartbeatRequest        = int16(12)
+	kafkaAPILeaveGroupRequest       = int16(13)
+	kafkaAPISyncGroupRequest        = int16(14)
+	kafkaAPIDescribeGroupsRequest   = int16(15)
+	kafkaAPIListGroupsRequest       = int16(16)
 
-	kafka_NoError                          = int16(0)
-	kafka_Unknown                          = int16(-1)
-	kafka_OffsetOutOfRange                 = int16(1)
-	kafka_InvalidMessage                   = int16(2)
-	kafka_UnknownTopicOrPartition          = int16(3)
-	kafka_InvalidMessageSize               = int16(4)
-	kafka_LeaderNotAvailable               = int16(5)
-	kafka_NotLeaderForPartition            = int16(6)
-	kafka_RequestTimedOut                  = int16(7)
-	kafka_BrokerNotAvailable               = int16(8)
-	kafka_ReplicaNotAvailable              = int16(9)
-	kafka_MessageSizeTooLarge              = int16(10)
-	kafka_StaleControllerEpochCode         = int16(11)
-	kafka_OffsetMetadataTooLargeCode       = int16(12)
-	kafka_GroupLoadInProgressCode          = int16(14)
-	kafka_GroupCoordinatorNotAvailableCode = int16(15)
-	kafka_NotCoordinatorForGroupCode       = int16(16)
-	kafka_InvalidTopicCode                 = int16(17)
-	kafka_RecordListTooLargeCode           = int16(18)
-	kafka_NotEnoughReplicasCode            = int16(19)
-	kafka_NotEnoughReplicasAfterAppendCode = int16(20)
-	kafka_InvalidRequiredAcksCode          = int16(21)
-	kafka_IllegalGenerationCode            = int16(22)
-	kafka_InconsistentGroupProtocolCode    = int16(23)
-	kafka_InvalidGroupIdCode               = int16(24)
-	kafka_UnknownMemberIdCode              = int16(25)
-	kafka_InvalidSessionTimeoutCode        = int16(26)
-	kafka_RebalanceInProgressCode          = int16(27)
-	kafka_InvalidCommitOffsetSizeCode      = int16(28)
-	kafka_TopicAuthorizationFailedCode     = int16(29)
-	kafka_GroupAuthorizationFailedCode     = int16(30)
-	kafka_ClusterAuthorizationFailedCode   = int16(31)
+	// currently unused
+	// kafka_NoError                          = int16(0)
+	// kafka_Unknown                          = int16(-1)
+	// kafka_OffsetOutOfRange                 = int16(1)
+	// kafka_InvalidMessage                   = int16(2)
+	// kafka_UnknownTopicOrPartition          = int16(3)
+	// kafka_InvalidMessageSize               = int16(4)
+	// kafka_LeaderNotAvailable               = int16(5)
+	// kafka_NotLeaderForPartition            = int16(6)
+	// kafka_RequestTimedOut                  = int16(7)
+	// kafka_BrokerNotAvailable               = int16(8)
+	// kafka_ReplicaNotAvailable              = int16(9)
+	// kafka_MessageSizeTooLarge              = int16(10)
+	// kafka_StaleControllerEpochCode         = int16(11)
+	// kafka_OffsetMetadataTooLargeCode       = int16(12)
+	// kafka_GroupLoadInProgressCode          = int16(14)
+	// kafka_GroupCoordinatorNotAvailableCode = int16(15)
+	// kafka_NotCoordinatorForGroupCode       = int16(16)
+	// kafka_InvalidTopicCode                 = int16(17)
+	// kafka_RecordListTooLargeCode           = int16(18)
+	// kafka_NotEnoughReplicasCode            = int16(19)
+	// kafka_NotEnoughReplicasAfterAppendCode = int16(20)
+	// kafka_InvalidRequiredAcksCode          = int16(21)
+	// kafka_IllegalGenerationCode            = int16(22)
+	// kafka_InconsistentGroupProtocolCode    = int16(23)
+	// kafka_InvalidGroupIdCode               = int16(24)
+	// kafka_UnknownMemberIdCode              = int16(25)
+	// kafka_InvalidSessionTimeoutCode        = int16(26)
+	// kafka_RebalanceInProgressCode          = int16(27)
+	// kafka_InvalidCommitOffsetSizeCode      = int16(28)
+	// kafka_TopicAuthorizationFailedCode     = int16(29)
+	// kafka_GroupAuthorizationFailedCode     = int16(30)
+	// kafka_ClusterAuthorizationFailedCode   = int16(31)
 
-	kafka_retainedPayloadSize = int(1024)
+	kafkaRetainedPayloadSize = int(1024)
 )
 
-type kafka_message struct {
-	parent_compression int8
-	offset             int64
-	length             int32
-	crc                int32
-	magic_byte         int8
-	attributes         int8
-	timestamp          time.Time
-	key                []byte
-	value              []byte
+type kafkaMessage struct {
+	parentCompression int8
+	offset            int64
+	// length             int32
+	crc        int32
+	magicByte  int8
+	attributes int8
+	timestamp  time.Time
+	key        []byte
+	value      []byte
 
-	value_len int
+	valueLen int
 }
-type kafka_partition_set struct {
-	partition  int32
-	record_set []byte
-	messages   []kafka_message
+type kafkaPartitionSet struct {
+	partition int32
+	recordSet []byte
+	messages  []kafkaMessage
 }
-type kafka_produce_req_partition struct {
-	pset kafka_partition_set
+type kafkaProduceReqPartition struct {
+	pset kafkaPartitionSet
 }
-type kafka_produce_req_topic struct {
+type kafkaProduceReqTopic struct {
 	topic      string
-	partitions []kafka_produce_req_partition
+	partitions []kafkaProduceReqPartition
 }
-type kafka_produce_request struct {
+type kafkaProduceRequest struct {
 	requiredacks int16
 	timeout      int32
-	topics       []kafka_produce_req_topic
+	topics       []kafkaProduceReqTopic
 }
-type kafka_response_frame struct {
+type kafkaResponseFrame struct {
 	correlationid int32
 }
-type kafka_fetch_partition struct {
-	pset           kafka_partition_set
-	error_code     int16
-	high_watermark int64
+type kafkaFetchPartition struct {
+	pset          kafkaPartitionSet
+	errorCode     int16
+	highWatermark int64
 }
-type kafka_fetch_topic struct {
+type kafkaFetchTopic struct {
 	topic      string
-	partitions []kafka_fetch_partition
+	partitions []kafkaFetchPartition
 }
-type kafka_fetch_response struct {
-	throttle_time_ms int32
-	topics           []kafka_fetch_topic
+type kafkaFetchResponse struct {
+	throttleTimeMS int32
+	topics         []kafkaFetchTopic
 }
 
-type kafka_produce_partition struct {
-	partition  int32
-	error_code int16
-	offset     int64
-	timestamp  time.Time
+type kafkaProducePartition struct {
+	partition int32
+	errorCode int16
+	offset    int64
+	timestamp time.Time
 }
-type kafka_produce_topic struct {
+type kafkaProduceTopic struct {
 	topic      string
-	partitions []kafka_produce_partition
+	partitions []kafkaProducePartition
 }
-type kafka_produce_response struct {
-	throttle_time_ms int32
-	topics           []kafka_produce_topic
+type kafkaProduceResponse struct {
+	throttleTimeMS int32
+	topics         []kafkaProduceTopic
 }
 
-var global_kafka_fetch kafka_fetch_response
-var global_kafka_produce kafka_produce_response
+var globalKafkaFetch kafkaFetchResponse
+var globalKafkaProduce kafkaProduceResponse
 
-type kafka_request_frame struct {
+type kafkaRequestFrame struct {
 	apikey        int16
 	apiversion    int16
 	correlationid int32
 	clientid      string
 }
-type kafka_frame struct {
+type kafkaFrame struct {
 	inbound  bool
 	complete bool
-	so_far   int
+	soFar    int
 
-	request          kafka_request_frame
-	response         kafka_response_frame
-	produce_request  *kafka_produce_request
-	produce_response *kafka_produce_response
-	fetch_response   *kafka_fetch_response
+	request         kafkaRequestFrame
+	response        kafkaResponseFrame
+	produceRequest  *kafkaProduceRequest
+	produceResponse *kafkaProduceResponse
+	fetchResponse   *kafkaFetchResponse
 
-	length       int32
-	length_bytes [4]byte
-	payload      []byte
-	truncated    bool // don't use the payload, it's not all there
+	length      int32
+	lengthBytes [4]byte
+	payload     []byte
+	truncated   bool // don't use the payload, it's not all there
 
 	//
-	timestamp      time.Time
-	latency        time.Duration
-	response_bytes int
+	timestamp time.Time
+	latency   time.Duration
+	// response_bytes int
 }
-type kafka_Parser struct {
-	factory        *kafka_ParserFactory
-	stream         map[int32]*kafka_frame
-	request_frame  kafka_frame
-	response_frame kafka_frame
+type kafkaParser struct {
+	factory       *kafkaParserFactory
+	stream        map[int32]*kafkaFrame
+	requestFrame  kafkaFrame
+	responseFrame kafkaFrame
 }
 
-func kafka_frame_ApiName(code int16) (string, bool) {
+func kafkaFrameAPIName(code int16) (string, bool) {
 	switch code {
-	case kafka_ProduceRequest:
+	case kafkaAPIProduceRequest:
 		return "ProduceRequest", true
-	case kafka_FetchRequest:
+	case kafkaAPIFetchRequest:
 		return "FetchRequest", true
-	case kafka_OffsetRequest:
+	case kafkaAPIOffsetRequest:
 		return "OffsetRequest", true
-	case kafka_MetadataRequest:
+	case kafkaAPIMetadataRequest:
 		return "MetadataRequest", true
-	case kafka_Control4:
+	case kafkaAPIControl4:
 		return "Control4", true
-	case kafka_Control5:
+	case kafkaAPIControl5:
 		return "Control5", true
-	case kafka_Control6:
+	case kafkaAPIControl6:
 		return "Control6", true
-	case kafka_Control7:
+	case kafkaAPIControl7:
 		return "Control7", true
-	case kafka_OffsetCommitRequest:
+	case kafkaAPIOffsetCommitRequest:
 		return "OffsetCommitRequest", true
-	case kafka_OffsetFetchRequest:
+	case kafkaAPIOffsetFetchRequest:
 		return "OffsetFetchRequest", true
-	case kafka_GroupCoordinatorRequest:
+	case kafkaAPIGroupCoordinatorRequest:
 		return "GroupCoordinatorRequest", true
-	case kafka_JoinGroupRequest:
+	case kafkaAPIJoinGroupRequest:
 		return "JoinGroupRequest", true
-	case kafka_HeartbeatRequest:
+	case kafkaAPIHeartbeatRequest:
 		return "HeartbeatRequest", true
-	case kafka_LeaveGroupRequest:
+	case kafkaAPILeaveGroupRequest:
 		return "LeaveGroupRequest", true
-	case kafka_SyncGroupRequest:
+	case kafkaAPISyncGroupRequest:
 		return "SyncGroupRequest", true
-	case kafka_DescribeGroupsRequest:
+	case kafkaAPIDescribeGroupsRequest:
 		return "DescribeGroupsRequest", true
-	case kafka_ListGroupsRequest:
+	case kafkaAPIListGroupsRequest:
 		return "ListGroupsRequest", true
 	}
 	return fmt.Sprintf("unknown:%d", code), false
 }
-func (f *kafka_frame) ApiName() string {
+func (f *kafkaFrame) APIName() string {
 	if f.inbound {
-		name, _ := kafka_frame_ApiName(f.request.apikey)
+		name, _ := kafkaFrameAPIName(f.request.apikey)
 		return name
 	}
 	return "Response"
 }
-func (f *kafka_frame) copy() *kafka_frame {
-	f_copy := *f
-	f_copy.payload = nil
-	return &f_copy
+func (f *kafkaFrame) copy() *kafkaFrame {
+	newFrame := *f
+	newFrame.payload = nil
+	return &newFrame
 }
-func (p *kafka_Parser) report_pset(f *kafka_frame, pset *kafka_partition_set, topic string, partition int32, now time.Time) int {
-	n_msgs := 0
+func (p *kafkaParser) reportPset(f *kafkaFrame, pset *kafkaPartitionSet, topic string, partition int32, now time.Time) int {
+	numMsgs := 0
 	if pset.messages != nil {
 		for _, m := range pset.messages {
-			n_msgs++
-			if f.request.apiversion > 0 && (f.produce_request == nil || f.produce_request.requiredacks != 0) {
+			numMsgs++
+			if f.request.apiversion > 0 && (f.produceRequest == nil || f.produceRequest.requiredacks != 0) {
 				mlat := now.Sub(m.timestamp)
-				wl_track_float64("seconds", float64(mlat)/1000000000.0, f.ApiName()+"`_aggregate`message`latency")
-				wl_track_float64("seconds", float64(mlat)/1000000000.0, f.ApiName()+"`"+topic+"`message`latency")
+				wlTrackFloat64("seconds", mlat.Seconds(), f.APIName()+"`_aggregate`message`latency")
+				wlTrackFloat64("seconds", mlat.Seconds(), f.APIName()+"`"+topic+"`message`latency")
 			}
 			if m.value != nil {
-				wl_track_int64("bytes", int64(m.value_len), f.ApiName()+"`_aggregate`message`size")
-				wl_track_int64("bytes", int64(m.value_len), f.ApiName()+"`"+topic+"`message`size")
+				wlTrackInt64("bytes", int64(m.valueLen), f.APIName()+"`_aggregate`message`size")
+				wlTrackInt64("bytes", int64(m.valueLen), f.APIName()+"`"+topic+"`message`size")
 			}
 		}
 	}
-	return n_msgs
+	return numMsgs
 }
-func (p *kafka_Parser) report(stream *tcpTwoWayStream, f *kafka_frame, now time.Time) {
+func (p *kafkaParser) report(stream *tcpTwoWayStream, f *kafkaFrame, now time.Time) {
 	latency := &f.latency
-	if f.request.apikey == kafka_ProduceRequest &&
-		f.produce_request != nil &&
-		f.produce_request.requiredacks == 0 {
+	if f.request.apikey == kafkaAPIProduceRequest &&
+		f.produceRequest != nil &&
+		f.produceRequest.requiredacks == 0 {
 		latency = nil
-		n_msgs := 0
-		for _, topic := range f.produce_request.topics {
-			p_msgs := 0
+		numMsgs := 0
+		for _, topic := range f.produceRequest.topics {
+			pMsgs := 0
 			for _, part := range topic.partitions {
-				p_msgs += p.report_pset(f, &part.pset, topic.topic, part.pset.partition, now)
+				pMsgs += p.reportPset(f, &part.pset, topic.topic, part.pset.partition, now)
 			}
-			wl_track_int64("messages", int64(p_msgs), f.ApiName()+"`"+topic.topic+"`messages")
-			wl_track_int64("bytes", int64(f.length), f.ApiName()+"`"+topic.topic+"`bytes")
-			n_msgs += p_msgs
+			wlTrackInt64("messages", int64(pMsgs), f.APIName()+"`"+topic.topic+"`messages")
+			wlTrackInt64("bytes", int64(f.length), f.APIName()+"`"+topic.topic+"`bytes")
+			numMsgs += pMsgs
 		}
-		wl_track_int64("messages", int64(n_msgs), f.ApiName()+"`_aggregate`messages")
-		wl_track_int64("bytes", int64(f.length), f.ApiName()+"`_aggregate`bytes")
+		wlTrackInt64("messages", int64(numMsgs), f.APIName()+"`_aggregate`messages")
+		wlTrackInt64("bytes", int64(f.length), f.APIName()+"`_aggregate`bytes")
 	}
 	if latency != nil {
-		wl_track_float64("seconds", float64(*latency)/1000000000.0, f.ApiName()+"`latency")
+		wlTrackFloat64("seconds", float64(*latency)/1000000000.0, f.APIName()+"`latency")
 	}
-	if f.produce_response != nil || f.fetch_response != nil {
-		n_msgs := 0
-		if f.produce_response != nil && f.produce_request != nil {
-			for _, topic := range f.produce_response.topics {
-				p_msgs := 0
-				var rparts []kafka_produce_req_partition
-				for _, rtopic := range f.produce_request.topics {
+	if f.produceResponse != nil || f.fetchResponse != nil {
+		numMsgs := 0
+		if f.produceResponse != nil && f.produceRequest != nil {
+			for _, topic := range f.produceResponse.topics {
+				pMsgs := 0
+				var rparts []kafkaProduceReqPartition
+				for _, rtopic := range f.produceRequest.topics {
 					if topic.topic == rtopic.topic {
 						rparts = rtopic.partitions
 					}
@@ -289,82 +290,82 @@ func (p *kafka_Parser) report(stream *tcpTwoWayStream, f *kafka_frame, now time.
 				for _, part := range topic.partitions {
 					for _, rpart := range rparts {
 						if part.partition == rpart.pset.partition {
-							p_msgs += p.report_pset(f, &rpart.pset, topic.topic, part.partition, now)
+							pMsgs += p.reportPset(f, &rpart.pset, topic.topic, part.partition, now)
 						}
 					}
 				}
-				wl_track_int64("messages", int64(p_msgs), f.ApiName()+"`"+topic.topic+"`messages")
-				wl_track_int64("bytes", int64(f.length), f.ApiName()+"`"+topic.topic+"`bytes")
-				n_msgs += p_msgs
+				wlTrackInt64("messages", int64(pMsgs), f.APIName()+"`"+topic.topic+"`messages")
+				wlTrackInt64("bytes", int64(f.length), f.APIName()+"`"+topic.topic+"`bytes")
+				numMsgs += pMsgs
 			}
 			if f.request.apiversion > 0 {
-				wl_track_float64("seconds", float64(f.produce_response.throttle_time_ms)/1000.0, f.ApiName()+"`throttle_time")
+				wlTrackFloat64("seconds", float64(f.produceResponse.throttleTimeMS)/1000.0, f.APIName()+"`throttle_time")
 			}
-		} else if f.fetch_response != nil {
-			for _, topic := range f.fetch_response.topics {
-				p_msgs := 0
+		} else if f.fetchResponse != nil {
+			for _, topic := range f.fetchResponse.topics {
+				pMsgs := 0
 				for _, part := range topic.partitions {
-					p_msgs += p.report_pset(f, &part.pset, topic.topic, part.pset.partition, now)
+					pMsgs += p.reportPset(f, &part.pset, topic.topic, part.pset.partition, now)
 				}
-				wl_track_int64("messages", int64(p_msgs), f.ApiName()+"`"+topic.topic+"`messages")
-				wl_track_int64("bytes", int64(f.length), f.ApiName()+"`"+topic.topic+"`bytes")
-				n_msgs += p_msgs
+				wlTrackInt64("messages", int64(pMsgs), f.APIName()+"`"+topic.topic+"`messages")
+				wlTrackInt64("bytes", int64(f.length), f.APIName()+"`"+topic.topic+"`bytes")
+				numMsgs += pMsgs
 			}
 		}
-		wl_track_int64("messages", int64(n_msgs), f.ApiName()+"`_aggregate`messages")
-		wl_track_int64("bytes", int64(f.length), f.ApiName()+"`_aggregate`bytes")
+		wlTrackInt64("messages", int64(numMsgs), f.APIName()+"`_aggregate`messages")
+		wlTrackInt64("bytes", int64(f.length), f.APIName()+"`_aggregate`bytes")
 	}
 }
 
 var snappyJavaMagic = []byte("\x82SNAPPY\x00")
 
-func (p *kafka_Parser) expand_messages(stream *tcpTwoWayStream, in []kafka_message, apiversion int16, pc int8, data []byte) []kafka_message {
+func (p *kafkaParser) expandMessages(stream *tcpTwoWayStream, in []kafkaMessage, apiversion int16, pc int8, data []byte) []kafkaMessage {
 	if in == nil {
-		in = make([]kafka_message, 0, 10)
+		in = make([]kafkaMessage, 0, 10)
 	}
 	used := 0
 	for used < len(data) {
-		m := kafka_message{}
-		m.parent_compression = pc
-		if m.offset, used = kafka_read_int64(data, used); used < 0 {
+		m := kafkaMessage{}
+		m.parentCompression = pc
+		if m.offset, used = kafkaReadInt64(data, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return in
 		}
-		m_len := int32(0)
-		if m_len, used = kafka_read_int32(data, used); used < 0 || m_len < 1 {
+		mLen := int32(0)
+		if mLen, used = kafkaReadInt32(data, used); used < 0 || mLen < 1 {
 			stream.factory.Error("bad_packet")
 			return in
 		}
-		expected_used := used + int(m_len)
-		if m.crc, used = kafka_read_int32(data, used); used < 0 {
+		expectedUsed := used + int(mLen)
+		if m.crc, used = kafkaReadInt32(data, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return in
 		}
-		if m.magic_byte, used = kafka_read_int8(data, used); used < 0 {
+		if m.magicByte, used = kafkaReadInt8(data, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return in
 		}
-		if m.attributes, used = kafka_read_int8(data, used); used < 0 {
+		if m.attributes, used = kafkaReadInt8(data, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return in
 		}
 		if apiversion > 0 {
 			var timestamp int64
-			if timestamp, used = kafka_read_int64(data, used); used < 0 {
+			if timestamp, used = kafkaReadInt64(data, used); used < 0 {
 				stream.factory.Error("bad_packet")
 				return in
 			}
 			m.timestamp = time.Unix(timestamp/1000, (timestamp%1000)*1000000)
 		}
-		if m.key, used = kafka_read_bytes(data, used); used < 0 {
+		if m.key, used = kafkaReadBytes(data, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return in
 		}
-		if m.value, used = kafka_read_bytes(data, used); used < 0 {
+		if m.value, used = kafkaReadBytes(data, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return in
 		}
-		m.value_len = len(m.value)
+		m.valueLen = len(m.value)
 		switch m.attributes & 0x7 {
 		case 0:
 			in = append(in, m)
@@ -372,7 +373,7 @@ func (p *kafka_Parser) expand_messages(stream *tcpTwoWayStream, in []kafka_messa
 			if compressed, err := gzip.NewReader(bytes.NewReader(m.value)); err == nil {
 				defer compressed.Close()
 				if data, rerr := ioutil.ReadAll(compressed); rerr == nil {
-					in = p.expand_messages(stream, in, apiversion, 2, data)
+					in = p.expandMessages(stream, in, apiversion, 2, data)
 				} else {
 					stream.factory.Error("bad_packet:gzip")
 				}
@@ -380,10 +381,10 @@ func (p *kafka_Parser) expand_messages(stream *tcpTwoWayStream, in []kafka_messa
 		case 2: //snappy
 			if !bytes.HasPrefix(m.value, snappyJavaMagic) {
 				if data, err := snappy.Decode(nil, m.value); err == nil {
-					in = p.expand_messages(stream, in, apiversion, 2, data)
+					in = p.expandMessages(stream, in, apiversion, 2, data)
 				} else {
 					stream.factory.Error("bad_packet:snappy")
-					if *debug_kafka {
+					if *debugKafka {
 						log.Printf("[DEBUG] snappy failed: %v", err)
 					}
 				}
@@ -405,85 +406,85 @@ func (p *kafka_Parser) expand_messages(stream *tcpTwoWayStream, in []kafka_messa
 					}
 				}
 				if data != nil {
-					in = p.expand_messages(stream, in, apiversion, 2, data)
+					in = p.expandMessages(stream, in, apiversion, 2, data)
 				}
 			}
 		case 3: //lz4
 			// todo golang lz4 implementations are "meh" and this is actually lz4f
 		}
 
-		if used != expected_used {
+		if used != expectedUsed {
 			stream.factory.Error("bad_packet")
-			if *debug_kafka {
+			if *debugKafka {
 				log.Printf("[DEBUG] corrupted message?")
 			}
-			used = expected_used
+			used = expectedUsed
 		}
 	}
 	return in
 }
-func (p *kafka_Parser) validateIn(stream *tcpTwoWayStream, f *kafka_frame) (bool, bool) {
+func (p *kafkaParser) validateIn(stream *tcpTwoWayStream, f *kafkaFrame) (bool, bool) {
 	// parse our request header
 	used := 0
-	if f.request.apikey, used = kafka_read_int16(f.payload, used); used < 0 {
+	if f.request.apikey, used = kafkaReadInt16(f.payload, used); used < 0 {
 		stream.factory.Error("bad_packet")
 		return false, false
 	}
-	if f.request.apiversion, used = kafka_read_int16(f.payload, used); used < 0 {
+	if f.request.apiversion, used = kafkaReadInt16(f.payload, used); used < 0 {
 		stream.factory.Error("bad_packet")
 		return false, false
 	}
-	if f.request.correlationid, used = kafka_read_int32(f.payload, used); used < 0 {
+	if f.request.correlationid, used = kafkaReadInt32(f.payload, used); used < 0 {
 		stream.factory.Error("bad_packet")
 		return false, false
 	}
-	if f.request.clientid, used = kafka_read_string(f.payload, used); used < 0 {
+	if f.request.clientid, used = kafkaReadString(f.payload, used); used < 0 {
 		stream.factory.Error("bad_packet")
 		return false, false
 	}
 
-	expect_response := true
-	_, valid := kafka_frame_ApiName(f.request.apikey)
+	expectResponse := true
+	_, valid := kafkaFrameAPIName(f.request.apikey)
 	// if it is a publish request with ack of 0, there will be no response
-	if f.request.apikey == kafka_ProduceRequest {
-		pr := kafka_produce_request{}
-		if pr.requiredacks, used = kafka_read_int16(f.payload, used); used < 0 {
+	if f.request.apikey == kafkaAPIProduceRequest {
+		pr := kafkaProduceRequest{}
+		if pr.requiredacks, used = kafkaReadInt16(f.payload, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return false, false
 		}
-		if pr.timeout, used = kafka_read_int32(f.payload, used); used < 0 {
+		if pr.timeout, used = kafkaReadInt32(f.payload, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return false, false
 		}
-		var n_topics int32
-		if n_topics, used = kafka_read_int32(f.payload, used); used < 0 {
+		var numTopics int32
+		if numTopics, used = kafkaReadInt32(f.payload, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return false, false
 		}
-		pr.topics = make([]kafka_produce_req_topic, n_topics)
-		for i := int32(0); i < n_topics; i++ {
-			if pr.topics[i].topic, used = kafka_read_string(f.payload, used); used < 0 {
+		pr.topics = make([]kafkaProduceReqTopic, numTopics)
+		for i := int32(0); i < numTopics; i++ {
+			if pr.topics[i].topic, used = kafkaReadString(f.payload, used); used < 0 {
 				stream.factory.Error("bad_packet")
 				return false, false
 			}
-			var n_partitions int32
-			if n_partitions, used = kafka_read_int32(f.payload, used); used < 0 {
+			var numPartitions int32
+			if numPartitions, used = kafkaReadInt32(f.payload, used); used < 0 {
 				stream.factory.Error("bad_packet")
 				return false, false
 			}
-			pr.topics[i].partitions = make([]kafka_produce_req_partition, n_partitions)
-			for p_i := int32(0); p_i < n_partitions; p_i++ {
-				part := &pr.topics[i].partitions[p_i]
+			pr.topics[i].partitions = make([]kafkaProduceReqPartition, numPartitions)
+			for j := int32(0); j < numPartitions; j++ {
+				part := &pr.topics[i].partitions[j]
 				pset := &part.pset
-				if pset.partition, used = kafka_read_int32(f.payload, used); used < 0 {
+				if pset.partition, used = kafkaReadInt32(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false, false
 				}
-				if pset.record_set, used = kafka_read_bytes(f.payload, used); used < 0 {
+				if pset.recordSet, used = kafkaReadBytes(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false, false
 				}
-				pset.messages = p.expand_messages(stream, pset.messages, f.request.apiversion, 0, pset.record_set)
+				pset.messages = p.expandMessages(stream, pset.messages, f.request.apiversion, 0, pset.recordSet)
 				// Zip through the messages and set their timestamps to the frame's timestamp
 				// we do this b/c we care about produce latencies, not timestamp latencies
 				for _, message := range pset.messages {
@@ -492,16 +493,16 @@ func (p *kafka_Parser) validateIn(stream *tcpTwoWayStream, f *kafka_frame) (bool
 			}
 		}
 		if pr.requiredacks == 0 {
-			expect_response = false
+			expectResponse = false
 			p.report(stream, f, f.timestamp)
 		}
-		f.produce_request = &pr
+		f.produceRequest = &pr
 	}
-	return valid, expect_response
+	return valid, expectResponse
 }
-func (p *kafka_Parser) validateOut(stream *tcpTwoWayStream, f *kafka_frame) bool {
+func (p *kafkaParser) validateOut(stream *tcpTwoWayStream, f *kafkaFrame) bool {
 	used := 0
-	if f.response.correlationid, used = kafka_read_int32(f.payload, used); used < 0 {
+	if f.response.correlationid, used = kafkaReadInt32(f.payload, used); used < 0 {
 		stream.factory.Error("bad_packet")
 		return false
 	}
@@ -511,92 +512,92 @@ func (p *kafka_Parser) validateOut(stream *tcpTwoWayStream, f *kafka_frame) bool
 		return false
 	}
 	switch req.request.apikey {
-	case kafka_FetchRequest:
-		global_kafka_fetch.throttle_time_ms = -1
+	case kafkaAPIFetchRequest:
+		globalKafkaFetch.throttleTimeMS = -1
 		if req.request.apiversion > 0 {
-			global_kafka_fetch.throttle_time_ms, used = kafka_read_int32(f.payload, used)
+			globalKafkaFetch.throttleTimeMS, used = kafkaReadInt32(f.payload, used)
 			if used < 0 {
 				stream.factory.Error("bad_packet")
 				return false
 			}
 		}
-		var n_topics int32
-		n_topics, used = kafka_read_int32(f.payload, used)
+		var numTopics int32
+		numTopics, used = kafkaReadInt32(f.payload, used)
 		if used < 0 {
 			stream.factory.Error("bad_packet")
 			return false
 		}
-		global_kafka_fetch.topics = make([]kafka_fetch_topic, n_topics)
-		for i := int32(0); i < n_topics; i++ {
-			var n_partitions int32
-			if global_kafka_fetch.topics[i].topic, used = kafka_read_string(f.payload, used); used < 0 {
+		globalKafkaFetch.topics = make([]kafkaFetchTopic, numTopics)
+		for i := int32(0); i < numTopics; i++ {
+			var numPartitions int32
+			if globalKafkaFetch.topics[i].topic, used = kafkaReadString(f.payload, used); used < 0 {
 				stream.factory.Error("bad_packet")
 				return false
 			}
-			if n_partitions, used = kafka_read_int32(f.payload, used); used < 0 {
+			if numPartitions, used = kafkaReadInt32(f.payload, used); used < 0 {
 				stream.factory.Error("bad_packet")
 				return false
 			}
-			global_kafka_fetch.topics[i].partitions = make([]kafka_fetch_partition, n_partitions)
-			for p_i := int32(0); p_i < n_partitions; p_i++ {
-				part := &global_kafka_fetch.topics[i].partitions[p_i]
+			globalKafkaFetch.topics[i].partitions = make([]kafkaFetchPartition, numPartitions)
+			for j := int32(0); j < numPartitions; j++ {
+				part := &globalKafkaFetch.topics[i].partitions[j]
 				pset := &part.pset
-				if pset.partition, used = kafka_read_int32(f.payload, used); used < 0 {
+				if pset.partition, used = kafkaReadInt32(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false
 				}
-				if part.error_code, used = kafka_read_int16(f.payload, used); used < 0 {
+				if part.errorCode, used = kafkaReadInt16(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false
 				}
-				if part.high_watermark, used = kafka_read_int64(f.payload, used); used < 0 {
+				if part.highWatermark, used = kafkaReadInt64(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false
 				}
-				if pset.record_set, used = kafka_read_bytes(f.payload, used); used < 0 {
+				if pset.recordSet, used = kafkaReadBytes(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false
 				}
-				pset.messages = p.expand_messages(stream, pset.messages, req.request.apiversion, 0, pset.record_set)
+				pset.messages = p.expandMessages(stream, pset.messages, req.request.apiversion, 0, pset.recordSet)
 			}
 		}
-		req.fetch_response = &global_kafka_fetch
-	case kafka_ProduceRequest:
-		global_kafka_produce.throttle_time_ms = -1
-		var n_topics int32
-		if n_topics, used = kafka_read_int32(f.payload, used); used < 0 {
+		req.fetchResponse = &globalKafkaFetch
+	case kafkaAPIProduceRequest:
+		globalKafkaProduce.throttleTimeMS = -1
+		var numTopics int32
+		if numTopics, used = kafkaReadInt32(f.payload, used); used < 0 {
 			stream.factory.Error("bad_packet")
 			return false
 		}
-		global_kafka_produce.topics = make([]kafka_produce_topic, n_topics)
-		for i := int32(0); i < n_topics; i++ {
-			var n_partitions int32
-			if global_kafka_produce.topics[i].topic, used = kafka_read_string(f.payload, used); used < 0 {
+		globalKafkaProduce.topics = make([]kafkaProduceTopic, numTopics)
+		for i := int32(0); i < numTopics; i++ {
+			var numPartitions int32
+			if globalKafkaProduce.topics[i].topic, used = kafkaReadString(f.payload, used); used < 0 {
 				stream.factory.Error("bad_packet")
 				return false
 			}
-			if n_partitions, used = kafka_read_int32(f.payload, used); used < 0 {
+			if numPartitions, used = kafkaReadInt32(f.payload, used); used < 0 {
 				stream.factory.Error("bad_packet")
 				return false
 			}
-			global_kafka_produce.topics[i].partitions = make([]kafka_produce_partition, n_partitions)
-			for p := int32(0); p < n_partitions; p++ {
-				part := &global_kafka_produce.topics[i].partitions[p]
-				if part.partition, used = kafka_read_int32(f.payload, used); used < 0 {
+			globalKafkaProduce.topics[i].partitions = make([]kafkaProducePartition, numPartitions)
+			for p := int32(0); p < numPartitions; p++ {
+				part := &globalKafkaProduce.topics[i].partitions[p]
+				if part.partition, used = kafkaReadInt32(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false
 				}
-				if part.error_code, used = kafka_read_int16(f.payload, used); used < 0 {
+				if part.errorCode, used = kafkaReadInt16(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false
 				}
-				if part.offset, used = kafka_read_int64(f.payload, used); used < 0 {
+				if part.offset, used = kafkaReadInt64(f.payload, used); used < 0 {
 					stream.factory.Error("bad_packet")
 					return false
 				}
 				if req.request.apiversion > 1 {
 					var timestamp int64
-					if timestamp, used = kafka_read_int64(f.payload, used); used < 0 {
+					if timestamp, used = kafkaReadInt64(f.payload, used); used < 0 {
 						stream.factory.Error("bad_packet")
 						return false
 					}
@@ -609,31 +610,31 @@ func (p *kafka_Parser) validateOut(stream *tcpTwoWayStream, f *kafka_frame) bool
 			}
 		}
 		if req.request.apiversion > 0 {
-			if global_kafka_fetch.throttle_time_ms, used = kafka_read_int32(f.payload, used); used < 0 {
+			if globalKafkaFetch.throttleTimeMS, used = kafkaReadInt32(f.payload, used); used < 0 {
 				stream.factory.Error("bad_packet")
 				return false
 			}
 		}
-		req.produce_response = &global_kafka_produce
+		req.produceResponse = &globalKafkaProduce
 	}
 	return true
 }
-func (f *kafka_frame) init() {
+func (f *kafkaFrame) init() {
 	f.complete = false
-	f.so_far = 0
+	f.soFar = 0
 	f.request.apikey = -1
 	f.request.apiversion = -1
 	f.request.correlationid = -1
 	f.request.clientid = ""
-	f.fetch_response = nil
-	f.produce_request = nil
-	f.produce_response = nil
+	f.fetchResponse = nil
+	f.produceRequest = nil
+	f.produceResponse = nil
 	f.timestamp = time.Time{}
 	f.latency = 0
 	f.length = 0
 	f.truncated = false
-	if f.payload == nil || cap(f.payload) != kafka_retainedPayloadSize {
-		f.payload = make([]byte, 0, kafka_retainedPayloadSize)
+	if f.payload == nil || cap(f.payload) != kafkaRetainedPayloadSize {
+		f.payload = make([]byte, 0, kafkaRetainedPayloadSize)
 	}
 	f.payload = f.payload[:0]
 }
@@ -643,91 +644,93 @@ func (f *kafka_frame) init() {
 // the number of bytes of the passed data used.  used should
 // be the entire data size if frame is incomplete
 // If things go off the rails unrecoverably, used = -1 is returned
-func (f *kafka_frame) fillFrame(seen time.Time, data []byte) (complete bool, used int) {
+func (f *kafkaFrame) fillFrame(seen time.Time, data []byte) (complete bool, used int) {
 	if len(data) < 1 {
 		return false, 0
 	}
-	if f.so_far == 0 {
+	if f.soFar == 0 {
 		f.timestamp = seen
 	}
 	// Next four bytes are the length (inclusive of the four bytes?!)
-	for ; used < len(data) && f.so_far < 4; f.so_far, used = f.so_far+1, used+1 {
-		f.length_bytes[f.so_far] = data[used]
-		if f.so_far == 3 {
-			f.length = int32(binary.BigEndian.Uint32(f.length_bytes[:]))
+	for ; used < len(data) && f.soFar < 4; f.soFar, used = f.soFar+1, used+1 {
+		f.lengthBytes[f.soFar] = data[used]
+		if f.soFar == 3 {
+			f.length = int32(binary.BigEndian.Uint32(f.lengthBytes[:]))
 		}
 	}
-	if f.so_far < 4 {
+	if f.soFar < 4 {
 		return false, used
 	}
 
 	// Now we read in the legnth
-	remaining := f.length - (int32(f.so_far) - 4)
-	to_append := remaining // how much we're actually reading
+	remaining := f.length - (int32(f.soFar) - 4)
+	toAppend := remaining // how much we're actually reading
 	if int32(len(data)-used) < remaining {
 		// not complete
-		to_append = int32(len(data) - used)
+		toAppend = int32(len(data) - used)
 	}
-	capped_append := to_append // how much we're actually writing
-	if len(f.payload)+int(to_append) > cap(f.payload) {
-		capped_append = int32(cap(f.payload) - len(f.payload))
+	cappedAppend := toAppend // how much we're actually writing
+	if len(f.payload)+int(toAppend) > cap(f.payload) {
+		cappedAppend = int32(cap(f.payload) - len(f.payload))
 		f.truncated = true
 	}
-	if capped_append > 0 {
-		f.payload = append(f.payload, data[used:(used+int(capped_append))]...)
+	if cappedAppend > 0 {
+		f.payload = append(f.payload, data[used:(used+int(cappedAppend))]...)
 	}
-	used = used + int(to_append)
-	f.so_far = f.so_far + int(to_append)
-	if remaining == to_append {
+	used += int(toAppend)
+	f.soFar += int(toAppend)
+	if remaining == toAppend {
 		f.complete = true
-		if *debug_kafka {
+		if *debugKafka {
 			log.Printf("[DEBUG] frame completed")
 		}
 		return true, used
 	}
-	if *debug_kafka {
+	if *debugKafka {
 		log.Printf("[DEBUG] frame pending")
 	}
 	return false, used
 }
-func (p *kafka_Parser) flushStream() {
-	p.stream = make(map[int32]*kafka_frame)
-}
 
-func kafka_read_int8(data []byte, used int) (int8, int) {
+// unused
+// func (p *kafka_Parser) flushStream() {
+// 	p.stream = make(map[int32]*kafka_frame)
+// }
+
+func kafkaReadInt8(data []byte, used int) (int8, int) {
 	if len(data) > used+0 {
 		return int8(data[used]), used + 1
 	}
 	return int8(-1), -1
 }
-func kafka_read_int16(data []byte, used int) (int16, int) {
+func kafkaReadInt16(data []byte, used int) (int16, int) {
 	if len(data) > used+1 {
 		return int16(binary.BigEndian.Uint16(data[used:])), used + 2
 	}
 	return int16(-1), -1
 }
-func kafka_read_int32(data []byte, used int) (int32, int) {
+func kafkaReadInt32(data []byte, used int) (int32, int) {
 	if len(data) > used+3 {
 		return int32(binary.BigEndian.Uint32(data[used:])), used + 4
 	}
 	return int32(-1), -1
 }
-func kafka_read_int64(data []byte, used int) (int64, int) {
+func kafkaReadInt64(data []byte, used int) (int64, int) {
 	if len(data) > used+7 {
 		return int64(binary.BigEndian.Uint64(data[used:])), used + 8
 	}
 	return int64(-1), -1
 }
-func kafka_read_string(data []byte, used int) (string, int) {
+func kafkaReadString(data []byte, used int) (string, int) {
 	var slen int16
-	slen, used = kafka_read_int16(data, used)
+	slen, used = kafkaReadInt16(data, used)
 	if used < 0 || len(data) < used+int(slen) {
 		return "", -1
 	}
 	return string(data[used : used+int(slen)]), used + int(slen)
 }
-func kafka_read_bytes(data []byte, used int) ([]byte, int) {
-	slen, used := kafka_read_int32(data, used)
+func kafkaReadBytes(data []byte, used int) ([]byte, int) {
+	slen, used := kafkaReadInt32(data, used)
 	if used < 0 {
 		return nil, -1
 	}
@@ -742,104 +745,138 @@ func kafka_read_bytes(data []byte, used int) ([]byte, int) {
 	return data[used : used+int(slen)], used + int(slen)
 }
 
-func (p *kafka_Parser) reset() {
-	p.stream = make(map[int32]*kafka_frame)
-	p.request_frame.init()
-	p.response_frame.init()
+func (p *kafkaParser) reset() {
+	p.stream = make(map[int32]*kafkaFrame)
+	p.requestFrame.init()
+	p.responseFrame.init()
 }
-func (p *kafka_Parser) InBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
+func (p *kafkaParser) InBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
 	// build a request
 	for {
 		if len(data) == 0 {
 			return true
 		}
-		if complete, used := p.request_frame.fillFrame(seen, data); complete {
-			f := &p.request_frame
-			valid, expect_response := p.validateIn(stream, f)
+
+		complete, used := p.requestFrame.fillFrame(seen, data)
+		if !complete {
+			return true
+		}
+		if used < 0 {
+			if *debugKafka {
+				log.Printf("[DEBUG] <- BAD READ IN: %v", used)
+			}
+			p.reset()
+			return true
+		}
+		if complete {
+			f := &p.requestFrame
+			valid, expectResponse := p.validateIn(stream, f)
 			if !valid {
-				if *debug_kafka {
-					log.Printf("[DEBUG] <- BAD FRAME: %v", p.request_frame.ApiName())
+				if *debugKafka {
+					log.Printf("[DEBUG] <- BAD FRAME: %v", p.requestFrame.APIName())
 				}
 				p.reset()
 				return true
 			}
-			if expect_response {
+			if expectResponse {
 				p.stream[f.request.correlationid] = f.copy()
 			} else {
 				p.report(stream, f, seen)
 			}
 			data = data[used:]
-			p.request_frame.init()
-		} else if used < 0 {
-			if *debug_kafka {
-				log.Printf("[DEBUG] <- BAD READ IN: %v", used)
-			}
-			p.reset()
-			return true
-		} else if !complete {
-			return true
+			p.requestFrame.init()
 		}
+		// if complete, used := p.requestFrame.fillFrame(seen, data); complete {
+		// 	f := &p.requestFrame
+		// 	valid, expectResponse := p.validateIn(stream, f)
+		// 	if !valid {
+		// 		if *debugKafka {
+		// 			log.Printf("[DEBUG] <- BAD FRAME: %v", p.requestFrame.APIName())
+		// 		}
+		// 		p.reset()
+		// 		return true
+		// 	}
+		// 	if expectResponse {
+		// 		p.stream[f.request.correlationid] = f.copy()
+		// 	} else {
+		// 		p.report(stream, f, seen)
+		// 	}
+		// 	data = data[used:]
+		// 	p.requestFrame.init()
+		// } else if used < 0 {
+		// 	if *debugKafka {
+		// 		log.Printf("[DEBUG] <- BAD READ IN: %v", used)
+		// 	}
+		// 	p.reset()
+		// 	return true
+		// } else if !complete {
+		// 	return true
+		// }
 	}
 }
-func (p *kafka_Parser) OutBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
+func (p *kafkaParser) OutBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
 	for {
 		if len(data) == 0 {
 			return true
 		}
-		if complete, used := p.response_frame.fillFrame(seen, data); complete {
-			f := &p.response_frame
+
+		complete, used := p.responseFrame.fillFrame(seen, data)
+		if !complete {
+			return true
+		}
+		if used < 0 {
+			if *debugKafka {
+				log.Printf("[DEBUG] -> BAD READ OUT: %v", used)
+			}
+			p.reset()
+			return true
+		}
+		if complete {
+			f := &p.responseFrame
 			if !p.validateOut(stream, f) {
-				if *debug_kafka {
-					log.Printf("[DEBUG] -> BAD FRAME: %v", p.request_frame.ApiName())
+				if *debugKafka {
+					log.Printf("[DEBUG] -> BAD FRAME: %v", p.requestFrame.APIName())
 				}
 				p.reset()
 				return true
 			}
-			if *debug_kafka {
-				log.Printf("[DEBUG] -> %v [%v]", f.ApiName(), used)
+			if *debugKafka {
+				log.Printf("[DEBUG] -> %v [%v]", f.APIName(), used)
 			}
 			if req, ok := p.stream[f.response.correlationid]; ok {
 				req.latency = seen.Sub(req.timestamp)
 				delete(p.stream, f.response.correlationid)
-				if *debug_kafka {
-					log.Printf("[DEBUG] %v -> %v\nREQUEST: %+v\n", req.ApiName(), seen.Sub(req.timestamp), req)
+				if *debugKafka {
+					log.Printf("[DEBUG] %v -> %v\nREQUEST: %+v\n", req.APIName(), seen.Sub(req.timestamp), req)
 				}
 				p.report(stream, req, seen)
 			}
 
 			data = data[used:]
-			p.response_frame.init()
-		} else if used < 0 {
-			if *debug_kafka {
-				log.Printf("[DEBUG] -> BAD READ OUT: %v", used)
-			}
-			p.reset()
-			return true
-		} else if !complete {
-			return true
+			p.responseFrame.init()
 		}
 	}
 }
-func (p *kafka_Parser) ManageIn(stream *tcpTwoWayStream) {
+func (p *kafkaParser) ManageIn(stream *tcpTwoWayStream) {
 	panic("kafka wirelatency parser is not async")
 }
-func (p *kafka_Parser) ManageOut(stream *tcpTwoWayStream) {
+func (p *kafkaParser) ManageOut(stream *tcpTwoWayStream) {
 	panic("kafka wirelatency parser is not async")
 }
 
-type kafka_ParserFactory struct {
-	parsed map[uint16]string
+type kafkaParserFactory struct {
+	// parsed map[uint16]string
 }
 
-func (f *kafka_ParserFactory) New() TCPProtocolInterpreter {
-	p := kafka_Parser{}
+func (f *kafkaParserFactory) New() TCPProtocolInterpreter {
+	p := kafkaParser{}
 	p.factory = f
-	p.request_frame.inbound = true
+	p.requestFrame.inbound = true
 	p.reset()
 	return &p
 }
 func init() {
-	factory := &kafka_ParserFactory{}
+	factory := &kafkaParserFactory{}
 	kafkaProt := &TCPProtocol{
 		name:        "kafka",
 		defaultPort: 9093,

@@ -15,37 +15,37 @@ import (
 	"github.com/golang/snappy"
 )
 
-var debug_cql = flag.Bool("debug_cql", false, "Debug cassandra cql reassembly")
+var debugCQL = flag.Bool("debug_cql", false, "Debug cassandra cql reassembly")
 
 const (
 	retainedPayloadSize int = 512
 
-	cmd_ERROR        = uint8(0x00)
-	cmd_STARTUP      = uint8(0x01)
-	cmd_READY        = uint8(0x02)
-	cmd_AUTHENTICATE = uint8(0x03)
-	cmd_CREDENTIALS  = uint8(0x04)
-	cmd_OPTIONS      = uint8(0x05)
-	cmd_SUPPORTED    = uint8(0x06)
-	cmd_QUERY        = uint8(0x07)
-	cmd_RESULT       = uint8(0x08)
-	cmd_PREPARE      = uint8(0x09)
-	cmd_EXECUTE      = uint8(0x0A)
-	cmd_REGISTER     = uint8(0x0B)
-	cmd_EVENT        = uint8(0x0C)
+	cmdERROR        = uint8(0x00)
+	cmdSTARTUP      = uint8(0x01)
+	cmdREADY        = uint8(0x02)
+	cmdAUTHENTICATE = uint8(0x03)
+	cmdCREDENTIALS  = uint8(0x04)
+	cmdOPTIONS      = uint8(0x05)
+	cmdSUPPORTED    = uint8(0x06)
+	cmdQUERY        = uint8(0x07)
+	cmdRESULT       = uint8(0x08)
+	cmdPREPARE      = uint8(0x09)
+	cmdEXECUTE      = uint8(0x0A)
+	cmdREGISTER     = uint8(0x0B)
+	cmdEVENT        = uint8(0x0C)
 
-	flag_COMPRESSION = uint8(0x01)
-	flag_TRACING     = uint8(0x02)
+	flagCOMPRESSION = uint8(0x01)
+	// flag_TRACING     = uint8(0x02)
 )
 
-type cassandra_cql_frame struct {
+type cassandraCQLFrame struct {
 	complete               bool
-	so_far                 int
+	soFar                  int
 	response               bool
 	version, flags, opcode uint8
 	stream                 int16
 	length                 uint32
-	length_bytes           [4]byte
+	lengthBytes            [4]byte
 	payload                []byte
 	data                   []byte // the uncompressed frame payload
 	truncated              bool   // don't use the payload, it's not all there
@@ -53,51 +53,51 @@ type cassandra_cql_frame struct {
 	//
 	timestamp time.Time
 }
-type cassandra_cql_Parser struct {
-	factory        *cassandra_cql_ParserFactory
-	streams        map[int16][]cassandra_cql_frame
-	request_frame  cassandra_cql_frame
-	response_frame cassandra_cql_frame
+type cassandraCQLParser struct {
+	factory       *cassandraCQLParserFactory
+	streams       map[int16][]cassandraCQLFrame
+	requestFrame  cassandraCQLFrame
+	responseFrame cassandraCQLFrame
 }
 
-func cassandra_cql_frame_OpcodeName(code uint8) string {
+func cassandraCQLFrameOpcodeName(code uint8) string {
 	switch code {
-	case cmd_ERROR:
+	case cmdERROR:
 		return "Error"
-	case cmd_STARTUP:
+	case cmdSTARTUP:
 		return "Startup"
-	case cmd_READY:
+	case cmdREADY:
 		return "Ready"
-	case cmd_AUTHENTICATE:
+	case cmdAUTHENTICATE:
 		return "Authenticate"
-	case cmd_CREDENTIALS:
+	case cmdCREDENTIALS:
 		return "Credentials"
-	case cmd_OPTIONS:
+	case cmdOPTIONS:
 		return "Options"
-	case cmd_SUPPORTED:
+	case cmdSUPPORTED:
 		return "Supported"
-	case cmd_QUERY:
+	case cmdQUERY:
 		return "Query"
-	case cmd_RESULT:
+	case cmdRESULT:
 		return "Result"
-	case cmd_PREPARE:
+	case cmdPREPARE:
 		return "Prepare"
-	case cmd_EXECUTE:
+	case cmdEXECUTE:
 		return "Execute"
-	case cmd_REGISTER:
+	case cmdREGISTER:
 		return "Register"
-	case cmd_EVENT:
+	case cmdEVENT:
 		return "Event"
 	}
 	return "unknown"
 }
-func (f *cassandra_cql_frame) OpcodeName() string {
-	return cassandra_cql_frame_OpcodeName(f.opcode)
+func (f *cassandraCQLFrame) OpcodeName() string {
+	return cassandraCQLFrameOpcodeName(f.opcode)
 }
-func (f *cassandra_cql_frame) init() {
+func (f *cassandraCQLFrame) init() {
 	f.complete = false
 	f.response = false
-	f.so_far = 0
+	f.soFar = 0
 	f.version = 0
 	f.flags = 0
 	f.stream = 0
@@ -106,7 +106,7 @@ func (f *cassandra_cql_frame) init() {
 	f.data = nil
 	f.truncated = false
 	if f.payload == nil || cap(f.payload) != retainedPayloadSize {
-		f.payload = make([]byte, retainedPayloadSize, retainedPayloadSize)
+		f.payload = make([]byte, retainedPayloadSize)
 	}
 	f.payload = f.payload[:0]
 }
@@ -116,46 +116,46 @@ func (f *cassandra_cql_frame) init() {
 // the number of bytes of the passed data used.  used should
 // be the entire data size if frame is incomplete
 // If things go off the rails unrecoverably, used = -1 is returned
-func (f *cassandra_cql_frame) fillFrame(seen time.Time, data []byte) (complete bool, used int) {
+func (f *cassandraCQLFrame) fillFrame(seen time.Time, data []byte) (complete bool, used int) {
 	if len(data) < 1 {
 		return false, 0
 	}
-	if f.so_far == 0 {
+	if f.soFar == 0 {
 		f.timestamp = seen
 		f.version = data[used]
 		f.response = (f.version&0x80 == 0x80)
-		f.version = f.version & ^uint8(0x80)
-		f.so_far = f.so_far + 1
-		used = used + 1
+		f.version &= ^uint8(0x80)
+		f.soFar++
+		used++
 	}
 	headersize := 9
 	if f.version > 2 {
-		for ; used < len(data) && f.so_far < headersize; f.so_far, used = f.so_far+1, used+1 {
-			switch f.so_far {
+		for ; used < len(data) && f.soFar < headersize; f.soFar, used = f.soFar+1, used+1 {
+			switch f.soFar {
 			case 0:
 			case 1:
 				f.flags = data[used]
 			case 2:
 				f.stream = int16(data[used]) << 8
 			case 3:
-				f.stream = f.stream | int16(data[used])
+				f.stream |= int16(data[used])
 			case 4:
 				f.opcode = data[used]
 			case 5:
-				f.length_bytes[0] = data[used]
+				f.lengthBytes[0] = data[used]
 			case 6:
-				f.length_bytes[1] = data[used]
+				f.lengthBytes[1] = data[used]
 			case 7:
-				f.length_bytes[2] = data[used]
+				f.lengthBytes[2] = data[used]
 			case 8:
-				f.length_bytes[3] = data[used]
-				f.length = binary.BigEndian.Uint32(f.length_bytes[:])
+				f.lengthBytes[3] = data[used]
+				f.length = binary.BigEndian.Uint32(f.lengthBytes[:])
 			}
 		}
 	} else {
 		headersize = 8
-		for ; used < len(data) && f.so_far < headersize; f.so_far, used = f.so_far+1, used+1 {
-			switch f.so_far {
+		for ; used < len(data) && f.soFar < headersize; f.soFar, used = f.soFar+1, used+1 {
+			switch f.soFar {
 			case 0:
 			case 1:
 				f.flags = data[used]
@@ -164,41 +164,41 @@ func (f *cassandra_cql_frame) fillFrame(seen time.Time, data []byte) (complete b
 			case 3:
 				f.opcode = data[used]
 			case 4:
-				f.length_bytes[0] = data[used]
+				f.lengthBytes[0] = data[used]
 			case 5:
-				f.length_bytes[1] = data[used]
+				f.lengthBytes[1] = data[used]
 			case 6:
-				f.length_bytes[2] = data[used]
+				f.lengthBytes[2] = data[used]
 			case 7:
-				f.length_bytes[3] = data[used]
-				f.length = binary.BigEndian.Uint32(f.length_bytes[:])
+				f.lengthBytes[3] = data[used]
+				f.length = binary.BigEndian.Uint32(f.lengthBytes[:])
 			}
 		}
 	}
-	if f.so_far < headersize {
+	if f.soFar < headersize {
 		return false, used
 	}
-	remaining := f.length - uint32(f.so_far-headersize)
-	to_append := remaining // how much we're actually reading
+	remaining := f.length - uint32(f.soFar-headersize)
+	toAppend := remaining // how much we're actually reading
 	if uint32(len(data)-used) < remaining {
 		// not complete
-		to_append = uint32(len(data) - used)
+		toAppend = uint32(len(data) - used)
 	}
-	capped_append := to_append // how much we're actually writing
-	if len(f.payload)+int(to_append) > cap(f.payload) {
-		capped_append = uint32(cap(f.payload) - len(f.payload))
+	cappedAppend := toAppend // how much we're actually writing
+	if len(f.payload)+int(toAppend) > cap(f.payload) {
+		cappedAppend = uint32(cap(f.payload) - len(f.payload))
 		f.truncated = true
 	}
-	if *debug_cql {
-		log.Printf("[cql] need to read %d of %d, just %d capped to %d\n", remaining, f.length, to_append, capped_append)
+	if *debugCQL {
+		log.Printf("[cql] need to read %d of %d, just %d capped to %d\n", remaining, f.length, toAppend, cappedAppend)
 	}
-	if capped_append > 0 {
-		f.payload = append(f.payload, data[used:(used+int(capped_append))]...)
+	if cappedAppend > 0 {
+		f.payload = append(f.payload, data[used:(used+int(cappedAppend))]...)
 	}
-	used = used + int(to_append)
-	f.so_far += int(to_append)
-	if remaining == to_append {
-		if 0 != (f.flags & flag_COMPRESSION) {
+	used += int(toAppend)
+	f.soFar += int(toAppend)
+	if remaining == toAppend {
+		if 0 != (f.flags & flagCOMPRESSION) {
 			if data, err := snappy.Decode(nil, f.payload); err == nil {
 				f.data = data
 			}
@@ -210,25 +210,26 @@ func (f *cassandra_cql_frame) fillFrame(seen time.Time, data []byte) (complete b
 	}
 	return false, used
 }
-func (p *cassandra_cql_Parser) pushOnStream(f *cassandra_cql_frame) {
-	if fifo, ok := p.streams[f.stream]; ok {
-		fifo = append(fifo, *f)
+func (p *cassandraCQLParser) pushOnStream(f *cassandraCQLFrame) {
+	if _, ok := p.streams[f.stream]; ok {
+		p.streams[f.stream] = append(p.streams[f.stream], *f)
 	} else {
-		p.streams[f.stream] = make([]cassandra_cql_frame, 0, 5)
+		p.streams[f.stream] = make([]cassandraCQLFrame, 0, 5)
 		p.streams[f.stream] = append(p.streams[f.stream], *f)
 	}
 }
-func (p *cassandra_cql_Parser) popFromStream(stream int16) (f *cassandra_cql_frame) {
+func (p *cassandraCQLParser) popFromStream(stream int16) (f *cassandraCQLFrame) {
 	f = nil
 	if fifo, ok := p.streams[stream]; ok {
 		if len(fifo) > 0 {
-			f, fifo = &fifo[0], fifo[1:]
+			f = &fifo[0]
+			p.streams[stream] = fifo[1:]
 		}
 	}
 	return f
 }
 
-func read_longstring(data []byte) (out string, ok bool) {
+func readLongstring(data []byte) (out string, ok bool) {
 	if len(data) < 4 {
 		return "", false
 	}
@@ -239,18 +240,16 @@ func read_longstring(data []byte) (out string, ok bool) {
 	return string(data[4 : strlen+4]), true
 }
 
-var DEFAULT_CQL string = "unknown cql"
-
-func (p *cassandra_cql_Parser) report(req, resp *cassandra_cql_frame) {
-	var cql *string
-	cql = &DEFAULT_CQL
-	if req.opcode == cmd_QUERY && req.data != nil {
-		if qcql, ok := read_longstring(req.data); ok {
+func (p *cassandraCQLParser) report(req, resp *cassandraCQLFrame) {
+	defaultCQL := "unknown cql"
+	cql := &defaultCQL
+	if req.opcode == cmdQUERY && req.data != nil {
+		if qcql, ok := readLongstring(req.data); ok {
 			cql = &qcql
 		}
 	}
-	if req.opcode == cmd_PREPARE && req.data != nil {
-		if qcql, ok := read_longstring(req.data); ok {
+	if req.opcode == cmdPREPARE && req.data != nil {
+		if qcql, ok := readLongstring(req.data); ok {
 			if resp.data != nil && len(resp.data) >= 2 {
 				qcql = strings.Replace(qcql, "\n", " ", -1)
 				qcql = strings.Replace(qcql, "\r", " ", -1)
@@ -259,12 +258,12 @@ func (p *cassandra_cql_Parser) report(req, resp *cassandra_cql_frame) {
 			}
 		}
 	}
-	if req.opcode == cmd_EXECUTE && req.data != nil && len(req.data) >= 2 {
+	if req.opcode == cmdEXECUTE && req.data != nil && len(req.data) >= 2 {
 		id := binary.BigEndian.Uint16(req.data)
-		if prepared_cql, ok := p.factory.parsed[id]; ok {
-			cql = &prepared_cql
+		if preparedCQL, ok := p.factory.parsed[id]; ok {
+			cql = &preparedCQL
 		} else {
-			cql = &DEFAULT_CQL
+			cql = &defaultCQL
 		}
 	}
 
@@ -272,94 +271,100 @@ func (p *cassandra_cql_Parser) report(req, resp *cassandra_cql_frame) {
 
 	name := req.OpcodeName()
 
-	wl_track_int64("bytes", int64(req.length), name+"`request_bytes")
-	wl_track_int64("bytes", int64(resp.length), name+"`response_bytes")
-	wl_track_float64("seconds", float64(duration)/1000000000.0, name+"`latency")
+	wlTrackInt64("bytes", int64(req.length), name+"`request_bytes")
+	wlTrackInt64("bytes", int64(resp.length), name+"`response_bytes")
+	wlTrackFloat64("seconds", float64(duration)/1000000000.0, name+"`latency")
 
-	if req.opcode == cmd_EXECUTE {
+	if req.opcode == cmdEXECUTE {
 		// track query-specific execute metrics, in addition to aggregate
 		execName := name + "`" + *cql
-		wl_track_int64("bytes", int64(req.length), execName+"`request_bytes")
-		wl_track_int64("bytes", int64(resp.length), execName+"`response_bytes")
-		wl_track_float64("seconds", float64(duration)/1000000000.0, execName+"`latency")
+		wlTrackInt64("bytes", int64(req.length), execName+"`request_bytes")
+		wlTrackInt64("bytes", int64(resp.length), execName+"`response_bytes")
+		wlTrackFloat64("seconds", float64(duration)/1000000000.0, execName+"`latency")
 	}
 }
-func (p *cassandra_cql_Parser) InBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
+func (p *cassandraCQLParser) InBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
 	// build a request
 	for {
 		if len(data) == 0 {
-			if *debug_cql {
+			if *debugCQL {
 				log.Printf("[cql] incomplete in frame\n")
 			}
 			return true
 		}
-		if complete, used := p.request_frame.fillFrame(seen, data); complete {
-			p.pushOnStream(&p.request_frame)
-			data = data[used:]
-			p.request_frame.init()
-		} else if used < 0 {
-			if *debug_cql {
+		complete, used := p.requestFrame.fillFrame(seen, data)
+		if !complete {
+			if *debugCQL {
+				log.Printf("[cql] incomplete in frame\n")
+			}
+			return true
+		}
+		if used < 0 {
+			if *debugCQL {
 				log.Printf("[cql] bad in frame\n")
 			}
 			return false
-		} else if !complete {
-			if *debug_cql {
-				log.Printf("[cql] incomplete in frame\n")
-			}
-			return true
+		}
+		if complete {
+			p.pushOnStream(&p.requestFrame)
+			data = data[used:]
+			p.requestFrame.init()
 		}
 	}
 }
-func (p *cassandra_cql_Parser) OutBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
+func (p *cassandraCQLParser) OutBytes(stream *tcpTwoWayStream, seen time.Time, data []byte) bool {
 	for {
 		if len(data) == 0 {
-			if *debug_cql {
+			if *debugCQL {
 				log.Printf("[cql] incomplete out frame\n")
 			}
 			return true
 		}
-		if complete, used := p.response_frame.fillFrame(seen, data); complete {
-			req := p.popFromStream(p.response_frame.stream)
-			if *debug_cql {
-				log.Printf("[cql] %p response %+v\n", req, &p.response_frame)
+		complete, used := p.responseFrame.fillFrame(seen, data)
+		if !complete {
+			if *debugCQL {
+				log.Printf("[cql] incomplete out frame\n")
 			}
-			if req != nil {
-				p.report(req, &p.response_frame)
-			}
-			data = data[used:]
-			p.response_frame.init()
-		} else if used < 0 {
-			if *debug_cql {
+			return true
+		}
+		if used < 0 {
+			if *debugCQL {
 				log.Printf("[cql] bad out frame\n")
 			}
 			return false
-		} else if !complete {
-			if *debug_cql {
-				log.Printf("[cql] incomplete out frame\n")
+		}
+		if complete {
+			req := p.popFromStream(p.responseFrame.stream)
+			if *debugCQL {
+				log.Printf("[cql] %p response %+v\n", req, &p.responseFrame)
 			}
-			return true
+			if req != nil {
+				p.report(req, &p.responseFrame)
+			}
+			data = data[used:]
+			p.responseFrame.init()
 		}
 	}
 }
-func (p *cassandra_cql_Parser) ManageIn(stream *tcpTwoWayStream) {
+func (p *cassandraCQLParser) ManageIn(stream *tcpTwoWayStream) {
 }
-func (p *cassandra_cql_Parser) ManageOut(stream *tcpTwoWayStream) {
+func (p *cassandraCQLParser) ManageOut(stream *tcpTwoWayStream) {
 }
 
-type cassandra_cql_ParserFactory struct {
+type cassandraCQLParserFactory struct {
 	parsed map[uint16]string
 }
 
-func (f *cassandra_cql_ParserFactory) New() TCPProtocolInterpreter {
-	p := cassandra_cql_Parser{}
+func (f *cassandraCQLParserFactory) New() TCPProtocolInterpreter {
+	p := cassandraCQLParser{}
 	p.factory = f
-	p.streams = make(map[int16][]cassandra_cql_frame)
-	p.request_frame.init()
-	p.response_frame.init()
+	p.streams = make(map[int16][]cassandraCQLFrame)
+	p.requestFrame.init()
+	p.responseFrame.init()
 	return &p
 }
 func init() {
-	factory := &cassandra_cql_ParserFactory{}
+	factory := &cassandraCQLParserFactory{}
 	factory.parsed = make(map[uint16]string)
 	cassProt := &TCPProtocol{name: "cassandra_cql", defaultPort: 9042}
 	cassProt.interpFactory = factory

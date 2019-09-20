@@ -26,8 +26,8 @@ type tcpStreamFactory struct {
 	port          layers.TCPPort
 	useReaders    bool
 	inFlight      bool
-	n_clients     int64
-	n_sessions    int64
+	numClients    int64
+	numSessions   int64
 	config        interface{}
 	cleanup       chan *tcpTwoWayStream
 	cleanupList   *list.List
@@ -54,15 +54,15 @@ type tcpStream struct {
 	bytes, packets, outOfOrder, skipped int64
 	start, end                          time.Time
 	sawStart, sawEnd                    bool
-	readerTcp_complete_mu               sync.Mutex
-	readerTcp_complete                  bool
-	readerTcp                           *tcpreader.ReaderStream
+	readerTCPCompletemu                 sync.Mutex
+	readerTCPComplete                   bool
+	readerTCP                           *tcpreader.ReaderStream
 	reader                              *bufio.Reader
-	reassemblies_channel                chan []tcpassembly.Reassembly
-	reassemblies_channel_closed         bool
+	reassembliesChannel                 chan []tcpassembly.Reassembly
+	reassembliesChannelClosed           bool
 	parent                              *tcpTwoWayStream
 }
-type noopTcpStream struct {
+type noopTCPStream struct {
 }
 
 var sessions = make(map[gopacket.Flow]map[gopacket.Flow]*tcpTwoWayStream)
@@ -72,15 +72,14 @@ func isLocalDst(e gopacket.Endpoint) bool {
 	if !haveLocalAddresses {
 		return true
 	}
-	is_mine, _ := localAddresses[e]
-	return is_mine
+	return localAddresses[e]
 }
 func (twa *tcpTwoWayStream) release() bool {
 	if twa.inCreated {
 		select {
 		case <-twa.cleanupIn:
 			twa.inCreated = false
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] %v cleaned up in", twa)
 			}
 		default:
@@ -90,7 +89,7 @@ func (twa *tcpTwoWayStream) release() bool {
 		select {
 		case <-twa.cleanupOut:
 			twa.outCreated = false
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] %v cleaned up out", twa)
 			}
 		default:
@@ -98,7 +97,7 @@ func (twa *tcpTwoWayStream) release() bool {
 	}
 
 	if !twa.inCreated && !twa.outCreated {
-		if *debug_capture {
+		if *debugCapture {
 			log.Printf("[DEBUG] cleanup shitting down %v", twa)
 		}
 		if twa.in != nil {
@@ -145,58 +144,58 @@ func (factory *tcpStreamFactory) New(net, transport gopacket.Flow) tcpassembly.S
 	inbound := transport.Dst().String() == strconv.Itoa(int(factory.port)) && isLocalDst(net.Dst())
 	if !inbound {
 		if !(transport.Src().String() == strconv.Itoa(int(factory.port)) && isLocalDst(net.Src())) {
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] discarding %v:%v", net, transport)
 			}
-			return &noopTcpStream{}
+			return &noopTCPStream{}
 		}
 	}
-	net_session := net
-	transport_session := transport
+	netSession := net
+	transportSession := transport
 	if !inbound {
-		net_session = net.Reverse()
-		transport_session = transport.Reverse()
+		netSession = net.Reverse()
+		transportSession = transport.Reverse()
 	}
 
-	if *debug_capture {
+	if *debugCapture {
 		log.Printf("[DEBUG] New(%v, %v) -> %v\n", net, transport, inbound)
 	}
 	// Setup the two level session hash
 	// session[localnet:remotenet][localport:remoteport] -> &tcpTwoWayStream
-	dsess, ok := sessions[net_session]
+	dsess, ok := sessions[netSession]
 	if !ok {
-		if *debug_capture {
-			log.Printf("[DEBUG] establishing sessions for net:%v", net_session)
+		if *debugCapture {
+			log.Printf("[DEBUG] establishing sessions for net:%v", netSession)
 		}
 		dsess = make(map[gopacket.Flow]*tcpTwoWayStream)
-		sessions[net_session] = dsess
+		sessions[netSession] = dsess
 	}
-	parent, pok := dsess[transport_session]
+	parent, pok := dsess[transportSession]
 	if !pok {
-		if *debug_capture {
-			log.Printf("[DEBUG] establishing dsessions for ports:%v", transport_session)
+		if *debugCapture {
+			log.Printf("[DEBUG] establishing dsessions for ports:%v", transportSession)
 		}
 		interp := (*factory.interpFactory).New()
 		parent = &tcpTwoWayStream{interp: &interp, factory: factory}
 		parent.cleanupIn = make(chan bool, 1)
 		parent.cleanupOut = make(chan bool, 1)
-		atomic.AddInt64(&factory.n_clients, 1)
-		atomic.AddInt64(&factory.n_sessions, 1)
-		dsess[transport_session] = parent
+		atomic.AddInt64(&factory.numClients, 1)
+		atomic.AddInt64(&factory.numSessions, 1)
+		dsess[transportSession] = parent
 	}
 
 	// We can't very will have new streams where we have old streams.
 	if inbound && parent.in != nil {
-		return &noopTcpStream{}
+		return &noopTCPStream{}
 	}
 	if !inbound && parent.out != nil {
-		return &noopTcpStream{}
+		return &noopTCPStream{}
 	}
 
 	// Handle the inbound initial session startup
 	interp := *parent.interp
 	if inbound {
-		if *debug_capture {
+		if *debugCapture {
 			log.Printf("[DEBUG] new inbound TCP stream %v:%v started, paired: %v", net, transport, parent.out != nil)
 		}
 		s := &tcpStream{
@@ -212,11 +211,11 @@ func (factory *tcpStreamFactory) New(net, transport gopacket.Flow) tcpassembly.S
 		if factory.useReaders {
 			s.startReader()
 			go func() {
-				if *debug_capture {
+				if *debugCapture {
 					log.Printf("[DEBUG] go ManageIn(%v:%v) started", s.net, s.transport)
 				}
 				interp.ManageIn(parent)
-				if *debug_capture {
+				if *debugCapture {
 					log.Printf("[DEBUG] go ManageIn(%v:%v) ended", s.net, s.transport)
 				}
 				close(parent.cleanupIn)
@@ -227,7 +226,7 @@ func (factory *tcpStreamFactory) New(net, transport gopacket.Flow) tcpassembly.S
 		return s
 	}
 
-	if *debug_capture {
+	if *debugCapture {
 		log.Printf("[DEBUG] new outbound TCP stream %v:%v started, paired: %v", net, transport, parent.in != nil)
 	}
 	// The outbound return session startup
@@ -243,11 +242,11 @@ func (factory *tcpStreamFactory) New(net, transport gopacket.Flow) tcpassembly.S
 	if factory.useReaders {
 		s.startReader()
 		go func() {
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] go ManageOut(%v:%v) started", s.net, s.transport)
 			}
 			interp.ManageOut(parent)
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] go ManageOut(%v:%v) ended", s.net, s.transport)
 			}
 			close(parent.cleanupOut)
@@ -257,42 +256,42 @@ func (factory *tcpStreamFactory) New(net, transport gopacket.Flow) tcpassembly.S
 	}
 	return s
 }
-func (f *tcpStreamFactory) Error(name string) {
+func (factory *tcpStreamFactory) Error(name string) {
 	if metrics != nil {
-		metricname := f.name + "`" + f.port.String() + "`error`" + name
+		metricname := factory.name + "`" + factory.port.String() + "`error`" + name
 		metrics.Increment(metricname)
 	}
 }
-func (s *noopTcpStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
+func (s *noopTCPStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
 }
-func (s *noopTcpStream) ReassemblyComplete() {
+func (s *noopTCPStream) ReassemblyComplete() {
 }
 
 func (s *tcpStream) startReader() {
 	r := tcpreader.NewReaderStream()
-	s.readerTcp = &r
-	s.reader = bufio.NewReader(s.readerTcp)
-	s.reassemblies_channel = make(chan []tcpassembly.Reassembly, 10)
+	s.readerTCP = &r
+	s.reader = bufio.NewReader(s.readerTCP)
+	s.reassembliesChannel = make(chan []tcpassembly.Reassembly, 10)
 	go func(s *tcpStream) {
 		defer func() {
 			if r := recover(); r != nil {
-				if *debug_capture {
+				if *debugCapture {
 					log.Printf("[RECOVERY] tcp/startReader %v\n", r)
 				}
 			}
 		}()
 		for {
-			reassemblies, ok := <-s.reassemblies_channel
+			reassemblies, ok := <-s.reassembliesChannel
 			if !ok {
-				s.readerTcp_complete_mu.Lock()
-				defer s.readerTcp_complete_mu.Unlock()
-				if !s.readerTcp_complete {
-					s.readerTcp_complete = true
-					s.readerTcp.ReassemblyComplete()
+				s.readerTCPCompletemu.Lock()
+				defer s.readerTCPCompletemu.Unlock()
+				if !s.readerTCPComplete {
+					s.readerTCPComplete = true
+					s.readerTCP.ReassemblyComplete()
 				}
 				return
 			}
-			s.readerTcp.Reassembled(reassemblies)
+			s.readerTCP.Reassembled(reassemblies)
 		}
 	}(s)
 }
@@ -300,20 +299,20 @@ func (s *tcpStream) shutdownReader() {
 	if s.reader == nil {
 		return
 	}
-	if !s.reassemblies_channel_closed {
-		s.reassemblies_channel_closed = true
-		close(s.reassemblies_channel)
+	if !s.reassembliesChannelClosed {
+		s.reassembliesChannelClosed = true
+		close(s.reassembliesChannel)
 	}
-	s.readerTcp_complete_mu.Lock()
-	defer s.readerTcp_complete_mu.Unlock()
-	if !s.readerTcp_complete {
-		s.readerTcp_complete = true
-		s.readerTcp.ReassemblyComplete()
+	s.readerTCPCompletemu.Lock()
+	defer s.readerTCPCompletemu.Unlock()
+	if !s.readerTCPComplete {
+		s.readerTCPComplete = true
+		s.readerTCP.ReassemblyComplete()
 	}
 }
 func (s *tcpStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
 	if s.parent == nil || s.parent.factory == nil || s.parent.state == sessionStateBad {
-		if *debug_capture {
+		if *debugCapture {
 			log.Printf("[DEBUG] %v:%v in bad state", s.net, s.transport)
 		}
 		/* We know the session is borked, we can avoid reassembling */
@@ -339,7 +338,7 @@ func (s *tcpStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
 			}
 		}
 		if reassembly.Skip < 0 && parent.state != sessionStateGood {
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] %v skip: %v", direction, reassembly.Skip)
 			}
 			// One side will skip before the other.  If the out
@@ -347,7 +346,7 @@ func (s *tcpStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
 			// the in side skips and flips the state to "good"
 			return
 		} else if parent.state != sessionStateGood {
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] %v entering bad state [from %v]", direction, parent.state)
 			}
 			parent.state = sessionStateBad
@@ -359,7 +358,7 @@ func (s *tcpStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
 		}
 		s.bytes += int64(len(reassembly.Bytes))
 		if parent.interp != nil {
-			if *debug_capture_data {
+			if *debugCaptureData {
 				log.Printf("[DEBUG] %v %v", direction, reassembly.Bytes)
 			}
 			if in == s {
@@ -373,7 +372,7 @@ func (s *tcpStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
 
 			}
 		}
-		s.packets += 1
+		s.packets++
 		if reassembly.Skip > 0 {
 			s.skipped += int64(reassembly.Skip)
 		}
@@ -381,49 +380,49 @@ func (s *tcpStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
 		s.sawEnd = s.sawEnd || reassembly.End
 	}
 
-	if s.readerTcp != nil {
+	if s.readerTCP != nil {
 		mycopy := make([]tcpassembly.Reassembly, len(reassemblies))
 		copy(mycopy, reassemblies)
 		for i := 0; i < len(mycopy); i++ {
 			mycopy[i].Bytes = make([]byte, len(reassemblies[i].Bytes))
 			copy(mycopy[i].Bytes, reassemblies[i].Bytes)
 		}
-		s.reassemblies_channel <- mycopy
+		s.reassembliesChannel <- mycopy
 		//s.readerTcp.Reassembled(reassemblies)
 	}
 }
 func (s *tcpStream) ReassemblyComplete() {
-	net_session := s.net
-	transport_session := s.transport
+	netSession := s.net
+	transportSession := s.transport
 	if !s.inbound {
-		net_session = s.net.Reverse()
-		transport_session = s.transport.Reverse()
+		netSession = s.net.Reverse()
+		transportSession = s.transport.Reverse()
 	}
 
-	if s.reassemblies_channel != nil {
-		if *debug_capture {
+	if s.reassembliesChannel != nil {
+		if *debugCapture {
 			log.Printf("[DEBUG] reassembly done %v:%v", s.net, s.transport)
 		}
-		if !s.reassemblies_channel_closed {
-			s.reassemblies_channel_closed = true
-			close(s.reassemblies_channel)
+		if !s.reassembliesChannelClosed {
+			s.reassembliesChannelClosed = true
+			close(s.reassembliesChannel)
 		}
 	}
-	if dsess, ok := sessions[net_session]; ok {
-		if parent, ok := dsess[transport_session]; ok {
+	if dsess, ok := sessions[netSession]; ok {
+		if parent, ok := dsess[transportSession]; ok {
 			factory := parent.factory
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] removing sub session: %v:%v", s.net, s.transport)
 			}
-			delete(dsess, transport_session)
-			atomic.AddInt64(&factory.n_sessions, -1)
+			delete(dsess, transportSession)
+			atomic.AddInt64(&factory.numSessions, -1)
 			factory.cleanup <- parent
 		}
 		if len(dsess) == 0 {
-			if *debug_capture {
+			if *debugCapture {
 				log.Printf("[DEBUG] removing session: %v", s.net)
 			}
-			delete(sessions, net_session)
+			delete(sessions, netSession)
 		}
 	}
 }
@@ -449,10 +448,10 @@ type TCPProtocol struct {
 }
 
 func (p *TCPProtocol) Name() string {
-	return (*p).name
+	return p.name
 }
 func (p *TCPProtocol) DefaultPort() layers.TCPPort {
-	return (*p).defaultPort
+	return p.defaultPort
 }
 func (p *TCPProtocol) Factory(port layers.TCPPort, config *string) tcpassembly.StreamFactory {
 	factory := &tcpStreamFactory{
@@ -470,9 +469,9 @@ func (p *TCPProtocol) Factory(port layers.TCPPort, config *string) tcpassembly.S
 	if metrics != nil {
 		base := p.Name() + "`" + port.String()
 		metrics.SetCounterFunc(base+"`total_sessions",
-			func() uint64 { return uint64(factory.n_clients) })
+			func() uint64 { return uint64(factory.numClients) })
 		metrics.SetGaugeFunc(base+"`active_sessions",
-			func() int64 { return factory.n_sessions })
+			func() int64 { return factory.numSessions })
 	}
 	go factory.doCleanup()
 	return factory
