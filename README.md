@@ -1,5 +1,9 @@
 # Circonus WireLatency
 
+[![Go Documentation](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)][godocs]
+
+[godocs]: https://godoc.org/github.com/circonus-labs/wirelatency
+
 These are Go-based tools to sniff the wire and reconstruct various protocol
 sessions to extract various telemetry (namely latency) from transactions
 within those sessions.
@@ -95,7 +99,7 @@ uncompressed payload sizes.
 
 ## Building
 
-[go1.11](https://golang.org/dl/) is required to build. Most importantly,
+[go1.13](https://golang.org/dl/) is required to build. Most importantly,
 clone the repository _outside_ of `GOPATH`.
 
 ```sh
