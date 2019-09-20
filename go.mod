@@ -1,12 +1,14 @@
 module github.com/circonus-labs/wirelatency
 
 require (
-	github.com/circonus-labs/circonus-gometrics/v3 v3.0.0-beta
-	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
-	github.com/google/go-cmp v0.2.0 // indirect
-	github.com/google/gopacket v1.1.15
-	github.com/mdlayher/raw v0.0.0-20181016155347-fa5ef3332ca9 // indirect
-	github.com/pkg/errors v0.8.0
-	golang.org/x/net v0.0.0-20181129055619-fae4c4e3ad76 // indirect
-	golang.org/x/sys v0.0.0-20181128092732-4ed8d59d0b35 // indirect
+	github.com/circonus-labs/circonus-gometrics/v3 v3.0.0-beta.4
+	github.com/circonus-labs/go-apiclient v0.6.7 // indirect
+	github.com/golang/snappy v0.0.1
+	github.com/google/gopacket v1.1.17
+	github.com/hashicorp/go-retryablehttp v0.6.2 // indirect
+	github.com/pkg/errors v0.8.1
+	golang.org/x/net v0.0.0-20190611141213-3f473d35a33a // indirect
+	golang.org/x/sys v0.0.0-20190610200419-93c9922d18ae // indirect
 )
+
+go 1.13
